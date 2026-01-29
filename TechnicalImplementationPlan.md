@@ -1094,6 +1094,7 @@ Docker container on private LAN, optimized for low-powered hardware (tablets/old
 | 2026-01-29 | 1.0 | Initial technical assessment and implementation plan |
 | 2026-01-29 | 1.1 | Phase 0 completed: Repository bootstrapping, database, auth, Docker |
 | 2026-01-29 | 1.2 | Phase 1 completed: Navigation, admin shell, onboarding, login/logout, migrations |
+| 2026-01-29 | 1.3 | Phase 1 deployment verified: Fixed cookie security for HTTP, confirmed working authentication |
 
 ---
 
