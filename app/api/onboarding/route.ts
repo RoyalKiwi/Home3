@@ -71,9 +71,10 @@ export async function POST(request: NextRequest) {
     );
 
     // Set cookie on response
+    // Only use secure flag if using HTTPS (not just in production)
     response.cookies.set(JWT_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Set to true only if using HTTPS
       sameSite: 'lax',
       maxAge: 60 * 60 * 24, // 24 hours in seconds
       path: '/',
