@@ -12,10 +12,10 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json ./
 
 # Install dependencies
-RUN npm ci
+RUN npm install --production=false
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
