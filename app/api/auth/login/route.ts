@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import { getDb } from '@/lib/db';
-import { setSession } from '@/lib/auth';
+import { signToken } from '@/lib/auth';
+
+const JWT_COOKIE_NAME = 'homepage3_session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,14 +44,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session
-    await setSession({
+    // Create JWT token
+    const token = await signToken({
       userId: user.id,
       username: user.username,
       role: user.role,
     });
 
-    return NextResponse.json({
+    // Create response with cookie
+    const response = NextResponse.json({
       success: true,
       message: 'Login successful',
       user: {
@@ -58,6 +61,17 @@ export async function POST(request: NextRequest) {
         role: user.role,
       },
     });
+
+    // Set cookie on response
+    response.cookies.set(JWT_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours in seconds
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(

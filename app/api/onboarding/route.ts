@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { getDb } from '@/lib/db';
-import { setSession } from '@/lib/auth';
+import { signToken } from '@/lib/auth';
+
+const JWT_COOKIE_NAME = 'homepage3_session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,20 +54,32 @@ export async function POST(request: NextRequest) {
       "UPDATE settings SET value = 'true' WHERE key = 'onboarding_complete'"
     ).run();
 
-    // Create session
-    await setSession({
+    // Create JWT token
+    const token = await signToken({
       userId: result.lastInsertRowid as number,
       username,
       role: 'superuser',
     });
 
-    return NextResponse.json(
+    // Create response with cookie
+    const response = NextResponse.json(
       {
         success: true,
         message: 'Superuser created successfully',
       },
       { status: 201 }
     );
+
+    // Set cookie on response
+    response.cookies.set(JWT_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24, // 24 hours in seconds
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Onboarding error:', error);
     return NextResponse.json(
