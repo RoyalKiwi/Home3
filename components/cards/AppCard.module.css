@@ -172,7 +172,7 @@
 
 /* Medium Card (50% width, horizontal) */
 .medium {
-  min-height: 120px;
+  min-height: 140px;
 }
 
 .medium .cardContent {
@@ -190,9 +190,9 @@
   flex: 1;
 }
 
-/* Large Card (25% width, tall/vertical with gradient) */
+/* Large Card (25% width, tall/vertical with gradient - phone screen shape) */
 .large {
-  min-height: 280px;
+  min-height: 480px;
 }
 
 .large .iconWrapper {
@@ -262,7 +262,7 @@
 
   .large {
     width: calc(50% - 0.5rem);
-    min-height: 240px;
+    min-height: 400px;
   }
 }
 
