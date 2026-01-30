@@ -58,14 +58,14 @@
 .name {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
 }
 
 .subtext {
   font-size: 0.875rem;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.4;
 }
