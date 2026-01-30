@@ -12,7 +12,7 @@
 .title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -21,7 +21,7 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: white;
-  background: var(--color-accent);
+  background: var(--admin-purple);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -44,7 +44,7 @@
   gap: 1rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   transition: all 0.2s ease;
 }
@@ -59,7 +59,7 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   cursor: grab;
   transition: color 0.2s ease;
 }
@@ -69,7 +69,7 @@
 }
 
 .dragHandle:hover {
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .content {
@@ -80,13 +80,13 @@
 .name {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin-bottom: 0.25rem;
 }
 
 .meta {
   font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -107,7 +107,7 @@
 
 .editButton {
   color: white;
-  background: var(--color-accent);
+  background: var(--admin-purple);
 }
 
 .deleteButton {
@@ -125,12 +125,41 @@
 .empty {
   padding: 2rem;
   text-align: center;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
 .error {
   color: #ef4444;
+}
+
+/* Subcategory Groups */
+.subcategoryGroup {
+  margin-bottom: 2.5rem;
+}
+
+.subcategoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.subcategoryName {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cardCount {
+  font-size: 0.875rem;
+  color: var(--text-ghost);
+  font-weight: 500;
 }
 
 @media (max-width: 640px) {

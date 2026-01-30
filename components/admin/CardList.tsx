@@ -109,13 +109,36 @@ export default function CardList() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const oldIndex = cards.findIndex((c) => c.id === active.id);
-    const newIndex = cards.findIndex((c) => c.id === over.id);
+    // Find the cards being dragged
+    const activeCard = cards.find((c) => c.id === active.id);
+    const overCard = cards.find((c) => c.id === over.id);
 
-    const newCards = arrayMove(cards, oldIndex, newIndex);
-    const updates = newCards.map((c, index) => ({ ...c, order_index: index }));
+    // Don't allow dragging between different subcategories
+    if (!activeCard || !overCard || activeCard.subcategory_id !== overCard.subcategory_id) {
+      return;
+    }
 
-    setCards(updates);
+    // Get all cards in this subcategory
+    const subcategoryCards = cards.filter((c) => c.subcategory_id === activeCard.subcategory_id);
+    const oldIndex = subcategoryCards.findIndex((c) => c.id === active.id);
+    const newIndex = subcategoryCards.findIndex((c) => c.id === over.id);
+
+    // Reorder cards within the subcategory
+    const reorderedSubcategoryCards = arrayMove(subcategoryCards, oldIndex, newIndex);
+    const updates = reorderedSubcategoryCards.map((c, index) => ({ ...c, order_index: index }));
+
+    // Merge with other cards
+    const otherCards = cards.filter((c) => c.subcategory_id !== activeCard.subcategory_id);
+    const newCards = [...otherCards, ...updates].sort((a, b) => {
+      const subA = subcategories.find((s) => s.id === a.subcategory_id);
+      const subB = subcategories.find((s) => s.id === b.subcategory_id);
+      if (subA && subB && subA.order_index !== subB.order_index) {
+        return subA.order_index - subB.order_index;
+      }
+      return a.order_index - b.order_index;
+    });
+
+    setCards(newCards);
 
     try {
       await Promise.all(
@@ -151,6 +174,17 @@ export default function CardList() {
     return subcategories.find((s) => s.id === subcategoryId)?.name || 'Unknown';
   };
 
+  // Group cards by subcategory and sort by subcategory order
+  const groupedCards = subcategories
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((subcategory) => ({
+      subcategory,
+      cards: cards
+        .filter((c) => c.subcategory_id === subcategory.id)
+        .sort((a, b) => a.order_index - b.order_index),
+    }))
+    .filter((group) => group.cards.length > 0);
+
   if (loading) return <div className={styles.loading}>Loading cards...</div>;
   if (error) return <div className={styles.error}>Error: {error}</div>;
 
@@ -167,20 +201,28 @@ export default function CardList() {
         <div className={styles.empty}>No cards yet. Create your first card to get started.</div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-            <div className={styles.list}>
-              {cards.map((card) => (
-                <SortableItem
-                  key={card.id}
-                  id={card.id}
-                  card={card}
-                  subcategoryName={getSubcategoryName(card.subcategory_id)}
-                  onEdit={(c) => { setEditingCard(c); setModalOpen(true); }}
-                  onDelete={handleDelete}
-                />
-              ))}
+          {groupedCards.map(({ subcategory, cards: subcategoryCards }) => (
+            <div key={subcategory.id} className={styles.subcategoryGroup}>
+              <div className={styles.subcategoryHeader}>
+                <h3 className={styles.subcategoryName}>{subcategory.name}</h3>
+                <span className={styles.cardCount}>{subcategoryCards.length} cards</span>
+              </div>
+              <SortableContext items={subcategoryCards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+                <div className={styles.list}>
+                  {subcategoryCards.map((card) => (
+                    <SortableItem
+                      key={card.id}
+                      id={card.id}
+                      card={card}
+                      subcategoryName={getSubcategoryName(card.subcategory_id)}
+                      onEdit={(c) => { setEditingCard(c); setModalOpen(true); }}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
             </div>
-          </SortableContext>
+          ))}
         </DndContext>
       )}
 
