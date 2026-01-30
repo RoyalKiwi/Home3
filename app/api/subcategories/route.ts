@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getSession } from '@/lib/auth';
 import { validateString, validateInteger, validateBoolean } from '@/lib/validation';
 import type { Subcategory } from '@/lib/types';
 
 /**
  * GET /api/subcategories
  * List all subcategories (optionally filtered by category_id)
+ * Public endpoint - allows unauthenticated access for homepage
  */
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
-    await requireAuth();
+    // Optional authentication - don't require it for GET requests
+    const session = await getSession();
 
     const { searchParams } = new URL(request.url);
     const categoryIdParam = searchParams.get('category_id');

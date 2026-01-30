@@ -196,6 +196,7 @@
 /* Large Card (25% width, tall/vertical with gradient - phone screen shape) */
 .large {
   min-height: 480px;
+  padding: 0;
 }
 
 .large .iconWrapper {
