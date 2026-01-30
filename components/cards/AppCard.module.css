@@ -79,9 +79,6 @@
   bottom: auto !important;
   z-index: 10 !important;
   margin: 0 !important;
-  background: rgba(255, 0, 0, 0.3) !important; /* Debug: red background */
-  padding: 4px !important;
-  border-radius: 50% !important;
 }
 
 .statusDot {
