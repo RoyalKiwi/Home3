@@ -9,7 +9,7 @@ import CardList from '@/components/admin/CardList';
 type Tab = 'categories' | 'subcategories' | 'cards';
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('categories');
+  const [activeTab, setActiveTab] = useState<Tab>('cards');
 
   return (
     <div className={styles.container}>
@@ -20,10 +20,10 @@ export default function DashboardPage() {
 
       <div className={styles.tabs}>
         <button
-          className={`${styles.tab} ${activeTab === 'categories' ? styles.active : ''}`}
-          onClick={() => setActiveTab('categories')}
+          className={`${styles.tab} ${activeTab === 'cards' ? styles.active : ''}`}
+          onClick={() => setActiveTab('cards')}
         >
-          Categories
+          Cards
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'subcategories' ? styles.active : ''}`}
@@ -32,17 +32,17 @@ export default function DashboardPage() {
           Subcategories
         </button>
         <button
-          className={`${styles.tab} ${activeTab === 'cards' ? styles.active : ''}`}
-          onClick={() => setActiveTab('cards')}
+          className={`${styles.tab} ${activeTab === 'categories' ? styles.active : ''}`}
+          onClick={() => setActiveTab('categories')}
         >
-          Cards
+          Categories
         </button>
       </div>
 
       <div className={styles.content}>
-        {activeTab === 'categories' && <CategoryList />}
-        {activeTab === 'subcategories' && <SubcategoryList />}
         {activeTab === 'cards' && <CardList />}
+        {activeTab === 'subcategories' && <SubcategoryList />}
+        {activeTab === 'categories' && <CategoryList />}
       </div>
     </div>
   );
