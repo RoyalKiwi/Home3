@@ -12,8 +12,8 @@ interface IconSource {
 }
 
 /**
- * Fetch icon from a URL by checking standard manifest locations
- * Priority: Web App Manifest → Apple Touch Icon → Favicon
+ * Fetch icon from a URL - supports both direct image URLs and website URLs
+ * Priority: Direct image URL → Web App Manifest → Apple Touch Icon → Favicon
  */
 export async function fetchIconFromUrl(appUrl: string): Promise<string | null> {
   try {
@@ -23,9 +23,37 @@ export async function fetchIconFromUrl(appUrl: string): Promise<string | null> {
     }
 
     const url = new URL(appUrl);
-    const baseUrl = `${url.protocol}//${url.host}`;
 
-    console.log(`🔍 Fetching icon for: ${baseUrl}`);
+    // Check if this is a direct image URL
+    const pathname = url.pathname.toLowerCase();
+    const isDirectImage = /\.(svg|png|jpg|jpeg|ico|webp|gif)$/.test(pathname);
+
+    if (isDirectImage) {
+      console.log(`🎯 Direct image URL detected: ${appUrl}`);
+
+      // Download the image directly
+      const iconBuffer = await downloadIcon(appUrl);
+      if (!iconBuffer) {
+        console.log('❌ Failed to download direct image');
+        return null;
+      }
+
+      // Determine file extension from URL
+      const extension = pathname.split('.').pop() || 'png';
+      const hash = crypto.createHash('md5').update(appUrl).digest('hex');
+      const filename = `${hash}.${extension}`;
+      const filepath = path.join(CACHE_PATH, filename);
+
+      // Save icon to cache
+      fs.writeFileSync(filepath, iconBuffer);
+      console.log(`💾 Saved direct image to: ${filepath}`);
+
+      return `/cache/${filename}`;
+    }
+
+    // Otherwise, treat as website URL and search for icons
+    const baseUrl = `${url.protocol}//${url.host}`;
+    console.log(`🔍 Fetching icon for website: ${baseUrl}`);
 
     // Try to find the best icon source
     const iconSource = await findBestIconSource(baseUrl);
