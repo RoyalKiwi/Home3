@@ -119,6 +119,20 @@
   min-height: 80px;
 }
 
+/* Dropdown options styling */
+.select option {
+  background: var(--slate-surface);
+  color: var(--text-primary);
+  padding: 0.5rem;
+}
+
+.select option:hover,
+.select option:focus,
+.select option:checked {
+  background: var(--admin-purple);
+  color: white;
+}
+
 .checkbox {
   width: auto;
   margin-right: 0.5rem;
