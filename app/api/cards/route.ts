@@ -11,8 +11,6 @@ import {
 } from '@/lib/validation';
 import type { Card, CardSize } from '@/lib/types';
 import { fetchIconFromUrl } from '@/lib/services/branding';
-import { extractDominantColors } from '@/lib/services/colorExtraction';
-import { generateGradient } from '@/lib/services/gradientGenerator';
 
 /**
  * GET /api/cards
@@ -119,19 +117,13 @@ export async function POST(request: NextRequest) {
       ? validateJSON(body.gradient_colors, 'gradient_colors')
       : null;
 
-    // Auto-fetch icon and gradient if not provided
+    // Auto-fetch icon if not provided (gradient is manual via UI button)
     if (!iconUrl) {
       console.log(`🎯 Auto-fetching icon for: ${name} (${url})`);
       try {
         const fetchedIconPath = await fetchIconFromUrl(url);
         if (fetchedIconPath) {
           iconUrl = fetchedIconPath;
-
-          // Extract colors and generate gradient
-          const dominantColors = await extractDominantColors(fetchedIconPath);
-          const gradient = generateGradient(dominantColors);
-          gradientColors = JSON.stringify(gradient);
-
           console.log(`✅ Auto-fetch successful for ${name}`);
         } else {
           console.log(`⚠️  Auto-fetch failed for ${name}, card will use default icon`);

@@ -1,50 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { validateUrl } from '@/lib/validation';
-import { fetchIconFromUrl } from '@/lib/services/branding';
+import { validateString } from '@/lib/validation';
 import { extractDominantColors } from '@/lib/services/colorExtraction';
 import { generateGradient } from '@/lib/services/gradientGenerator';
 
 /**
- * POST /api/branding/fetch
- * Fetch icon from URL and return suggested gradient
- * (Gradient is returned as a suggestion, not auto-saved to card)
+ * POST /api/branding/gradient
+ * Generate gradient from an existing icon path
+ * Called by UI when user clicks "Generate Gradient" button
  * Admin only
  */
 export async function POST(request: NextRequest) {
   try {
-    // Require authentication
     await requireAuth();
 
     const body = await request.json();
 
-    // Validate URL
-    const appUrl = validateUrl(body.url, 'url');
+    // Validate icon path
+    const iconPath = validateString(body.icon_path, 'icon_path', 1, 500);
 
-    console.log(`🎯 Fetching branding for: ${appUrl}`);
+    console.log(`🎨 Generating gradient for: ${iconPath}`);
 
-    // Step 1: Fetch icon from URL
-    const iconPath = await fetchIconFromUrl(appUrl);
-
-    if (!iconPath) {
-      return NextResponse.json(
-        { error: 'Failed to fetch icon from URL. Please try uploading manually.' },
-        { status: 404 }
-      );
-    }
-
-    // Step 2: Extract dominant colors
+    // Extract colors and generate gradient
     const dominantColors = await extractDominantColors(iconPath);
-
-    // Step 3: Generate 4-color gradient
     const gradient = generateGradient(dominantColors);
 
-    console.log(`✅ Branding fetch complete for ${appUrl}`);
+    console.log(`✅ Gradient generated: ${gradient.join(', ')}`);
 
     return NextResponse.json({
       success: true,
       data: {
-        iconPath,
         gradient,
         dominantColors,
       },
@@ -64,9 +49,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error('Branding fetch error:', error);
+    console.error('Gradient generation error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch branding' },
+      { error: 'Failed to generate gradient. Please check that the icon path is valid.' },
       { status: 500 }
     );
   }

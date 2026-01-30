@@ -6,7 +6,8 @@ import { generateGradient } from '@/lib/services/gradientGenerator';
 
 /**
  * POST /api/branding/upload
- * Upload a custom icon and generate gradient
+ * Upload a custom icon and return suggested gradient
+ * (Gradient is returned as a suggestion, not auto-saved to card)
  * Admin only
  */
 export async function POST(request: NextRequest) {
