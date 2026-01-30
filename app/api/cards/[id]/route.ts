@@ -10,6 +10,7 @@ import {
   validateJSON,
 } from '@/lib/validation';
 import type { Card, CardSize } from '@/lib/types';
+import { cleanupCardIcon } from '@/lib/services/assetCleanup';
 
 /**
  * GET /api/cards/[id]
@@ -247,10 +248,10 @@ export async function DELETE(
 
     const db = getDb();
 
-    // Check if card exists
+    // Get card before deletion (need icon_url for cleanup)
     const existing = db
-      .prepare('SELECT id FROM cards WHERE id = ?')
-      .get(cardId) as { id: number } | undefined;
+      .prepare('SELECT id, icon_url FROM cards WHERE id = ?')
+      .get(cardId) as { id: number; icon_url: string | null } | undefined;
 
     if (!existing) {
       return NextResponse.json(
@@ -261,6 +262,9 @@ export async function DELETE(
 
     // Delete card
     db.prepare('DELETE FROM cards WHERE id = ?').run(cardId);
+
+    // Clean up icon if no longer in use
+    cleanupCardIcon(existing.icon_url);
 
     return NextResponse.json({
       success: true,
