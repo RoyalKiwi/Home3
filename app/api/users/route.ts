@@ -52,23 +52,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password, role } = body;
 
-    // Validation
-    const usernameError = validateString(username, 'Username', 3, 50);
-    if (usernameError) {
-      return NextResponse.json({ error: usernameError }, { status: 400 });
-    }
-
-    const passwordError = validateString(password, 'Password', 8, 128);
-    if (passwordError) {
-      return NextResponse.json({ error: passwordError }, { status: 400 });
-    }
+    // Validation - these throw errors if invalid
+    validateString(username, 'Username', 3, 50);
+    validateString(password, 'Password', 8, 128);
 
     // Validate role
     if (!role || !['superuser', 'admin'].includes(role)) {
-      return NextResponse.json(
-        { error: 'Role must be either "superuser" or "admin"' },
-        { status: 400 }
-      );
+      throw new Error('Role must be either "superuser" or "admin"');
     }
 
     const db = getDb();
@@ -107,6 +97,12 @@ export async function POST(request: NextRequest) {
     console.error('Error creating user:', error);
 
     if (error instanceof Error) {
+      // Validation errors
+      if (error.message.includes('must be')) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      // Auth errors
       if (error.message === 'Authentication required') {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
       }
