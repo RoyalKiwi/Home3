@@ -57,8 +57,18 @@ export default function CardModal({ card, subcategories, onClose }: CardModalPro
   };
 
   const handleFetchIcon = async () => {
-    if (!url.trim()) {
-      setError('Please enter a URL first');
+    // Check if there's a direct image URL in the icon field
+    const iconUrlTrimmed = iconUrl.trim();
+    const urlTrimmed = url.trim();
+
+    // Determine which URL to use: icon URL if it looks like an image, otherwise the card URL
+    let fetchUrl = '';
+    if (iconUrlTrimmed && /\.(svg|png|jpg|jpeg|ico|webp|gif)$/i.test(iconUrlTrimmed)) {
+      fetchUrl = iconUrlTrimmed;
+    } else if (urlTrimmed) {
+      fetchUrl = urlTrimmed;
+    } else {
+      setError('Please enter a URL or icon URL first');
       return;
     }
 
@@ -69,7 +79,7 @@ export default function CardModal({ card, subcategories, onClose }: CardModalPro
       const response = await fetch('/api/branding/fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: fetchUrl }),
       });
 
       const data = await response.json();
@@ -283,7 +293,7 @@ export default function CardModal({ card, subcategories, onClose }: CardModalPro
                 type="button"
                 className={styles.secondaryButton}
                 onClick={handleFetchIcon}
-                disabled={loading || fetchingIcon || !url.trim()}
+                disabled={loading || fetchingIcon || (!url.trim() && !iconUrl.trim())}
               >
                 {fetchingIcon ? '⏳ Fetching...' : '🔍 Fetch from URL'}
               </button>
@@ -295,7 +305,7 @@ export default function CardModal({ card, subcategories, onClose }: CardModalPro
               onChange={(e) => setIconUrl(e.target.value)}
               disabled={loading}
               maxLength={500}
-              placeholder="/cache/abc123.png (auto-populated or manual)"
+              placeholder="https://cdn.example.com/icon.svg or /cache/abc123.png"
             />
           </div>
 
