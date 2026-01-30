@@ -48,7 +48,7 @@ export async function fetchIconFromUrl(appUrl: string): Promise<string | null> {
       fs.writeFileSync(filepath, iconBuffer);
       console.log(`💾 Saved direct image to: ${filepath}`);
 
-      return `/cache/${filename}`;
+      return `/api/data/cache/${filename}`;
     }
 
     // Otherwise, treat as website URL and search for icons
@@ -83,8 +83,8 @@ export async function fetchIconFromUrl(appUrl: string): Promise<string | null> {
     fs.writeFileSync(filepath, iconBuffer);
     console.log(`💾 Saved icon to: ${filepath}`);
 
-    // Return relative path from /data
-    return `/cache/${filename}`;
+    // Return API path to serve cached file
+    return `/api/data/cache/${filename}`;
   } catch (error) {
     console.error('Icon fetch error:', error);
     return null;
@@ -284,6 +284,6 @@ export function saveUploadedIcon(buffer: Buffer, filename: string): string {
   fs.writeFileSync(filepath, buffer);
   console.log(`💾 Saved uploaded icon to: ${filepath}`);
 
-  // Return relative path from /data
-  return `/uploads/${uniqueFilename}`;
+  // Return API path to serve uploaded file
+  return `/api/data/uploads/${uniqueFilename}`;
 }

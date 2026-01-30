@@ -46,6 +46,13 @@ export default function AppCard({ card }: AppCardProps) {
       className={`${styles.card} ${sizeClass} ${showGradient ? styles.withGradient : ''}`}
       style={showGradient ? getGradientStyle() : {}}
     >
+      {/* Status Indicator (if enabled) - positioned absolutely relative to card */}
+      {card.show_status && (
+        <div className={styles.statusIndicator}>
+          <span className={`${styles.statusDot} ${styles[status]}`}></span>
+        </div>
+      )}
+
       <div className={styles.cardContent}>
         {/* Icon */}
         {card.icon_url && (
@@ -63,13 +70,6 @@ export default function AppCard({ card }: AppCardProps) {
           <h3 className={styles.name}>{card.name}</h3>
           <p className={styles.subtext}>{card.subtext}</p>
         </div>
-
-        {/* Status Indicator (if enabled) */}
-        {card.show_status && (
-          <div className={styles.statusIndicator}>
-            <span className={`${styles.statusDot} ${styles[status]}`}></span>
-          </div>
-        )}
       </div>
 
       {/* Gradient Overlay for large cards */}
