@@ -1,6 +1,6 @@
 /**
  * Unraid Driver
- * Integrates with Unraid API for system monitoring
+ * Integrates with official Unraid GraphQL API for system monitoring
  */
 
 import { BaseDriver } from './base';
@@ -26,49 +26,73 @@ export class UnraidDriver extends BaseDriver {
   }
 
   /**
-   * Build authorization header
+   * Execute a GraphQL query against Unraid API
    */
-  private getHeaders(): HeadersInit {
+  private async graphqlQuery<T = any>(query: string): Promise<T> {
+    const url = `${this.config.url}/graphql`;
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
+    // Add API key if provided
     if (this.config.apiKey) {
-      headers['X-API-Key'] = this.config.apiKey;
+      headers['x-api-key'] = this.config.apiKey;
     } else if (this.config.username && this.config.password) {
+      // Fallback to Basic Auth if no API key
       const auth = Buffer.from(`${this.config.username}:${this.config.password}`).toString('base64');
       headers['Authorization'] = `Basic ${auth}`;
     }
 
-    return headers;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.errors) {
+      throw new Error(`GraphQL Error: ${result.errors[0].message}`);
+    }
+
+    return result.data;
   }
 
   /**
-   * Test connection to Unraid
+   * Test connection to Unraid GraphQL API
    */
   async testConnection(): Promise<IntegrationTestResult> {
     try {
-      // Try system info endpoint
-      const url = `${this.config.url}/api/v1/system`;
+      const query = `
+        query {
+          info {
+            os {
+              platform
+              distro
+              release
+            }
+          }
+        }
+      `;
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: this.getHeaders(),
-        signal: AbortSignal.timeout(5000),
-      });
+      const data = await this.graphqlQuery(query);
 
-      if (!response.ok) {
+      if (!data.info || !data.info.os) {
         return {
           success: false,
-          message: `HTTP ${response.status}: ${response.statusText}`,
+          message: 'Invalid response - expected Unraid API data',
         };
       }
 
-      const data = await response.json();
-
       return {
         success: true,
-        message: `Successfully connected to Unraid server`,
+        message: `Connected to Unraid ${data.info.os.distro} ${data.info.os.release}`,
         data,
       };
     } catch (error) {
@@ -80,27 +104,31 @@ export class UnraidDriver extends BaseDriver {
   }
 
   /**
-   * Fetch CPU usage
+   * Fetch CPU info and usage
    */
   async fetchCPU(): Promise<MetricData> {
-    const url = `${this.config.url}/api/v1/system/cpu`;
+    const query = `
+      query {
+        info {
+          cpu {
+            manufacturer
+            brand
+            cores
+            threads
+          }
+        }
+      }
+    `;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
+    const data = await this.graphqlQuery(query);
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch CPU: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
+    // Note: Unraid API doesn't provide real-time CPU usage percentage
+    // We return CPU core count as the value for now
     return {
       timestamp: new Date().toISOString(),
-      value: data.usage || 0,
-      unit: '%',
-      metadata: data,
+      value: data.info.cpu.cores || 0,
+      unit: 'cores',
+      metadata: data.info.cpu,
     };
   }
 
@@ -108,54 +136,73 @@ export class UnraidDriver extends BaseDriver {
    * Fetch memory usage
    */
   async fetchMemory(): Promise<MetricData> {
-    const url = `${this.config.url}/api/v1/system/memory`;
+    const query = `
+      query {
+        info {
+          memory {
+            total
+            free
+            used
+          }
+        }
+      }
+    `;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch memory: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const percentage = (data.used / data.total) * 100;
+    const data = await this.graphqlQuery(query);
+    const mem = data.info.memory;
+    const percentage = (mem.used / mem.total) * 100;
 
     return {
       timestamp: new Date().toISOString(),
-      value: percentage,
+      value: Math.round(percentage * 100) / 100,
       unit: '%',
       metadata: {
-        used: data.used,
-        total: data.total,
-        free: data.free,
+        total: mem.total,
+        used: mem.used,
+        free: mem.free,
       },
     };
   }
 
   /**
-   * Fetch disk usage
+   * Fetch disk/array usage
    */
   async fetchDisk(): Promise<MetricData> {
-    const url = `${this.config.url}/api/v1/system/disks`;
+    const query = `
+      query {
+        array {
+          state
+          capacity {
+            disks {
+              total
+              used
+              free
+            }
+          }
+          disks {
+            name
+            size
+            status
+            temp
+          }
+        }
+      }
+    `;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch disk: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    const data = await this.graphqlQuery(query);
+    const capacity = data.array.capacity.disks;
+    const percentage = (capacity.used / capacity.total) * 100;
 
     return {
       timestamp: new Date().toISOString(),
-      value: data.usagePercent || 0,
+      value: Math.round(percentage * 100) / 100,
       unit: '%',
-      metadata: data,
+      metadata: {
+        total: capacity.total,
+        used: capacity.used,
+        free: capacity.free,
+        disks: data.array.disks,
+      },
     };
   }
 
@@ -163,49 +210,77 @@ export class UnraidDriver extends BaseDriver {
    * Fetch Docker container stats
    */
   async fetchDocker(): Promise<MetricData> {
-    const url = `${this.config.url}/api/v1/docker/containers`;
+    const query = `
+      query {
+        dockerContainers {
+          id
+          names
+          state
+          status
+          autoStart
+        }
+      }
+    `;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
+    const data = await this.graphqlQuery(query);
+    const containers = data.dockerContainers || [];
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch Docker stats: ${response.statusText}`);
-    }
-
-    const data = await response.json();
+    // Count running containers
+    const running = containers.filter((c: any) => c.state === 'running').length;
 
     return {
       timestamp: new Date().toISOString(),
-      value: data.length || 0,
-      unit: 'containers',
-      metadata: { containers: data },
+      value: running,
+      unit: 'running',
+      metadata: {
+        total: containers.length,
+        running,
+        containers: containers.map((c: any) => ({
+          name: c.names,
+          state: c.state,
+          status: c.status,
+        })),
+      },
     };
   }
 
   /**
-   * Fetch system temperature
+   * Fetch system temperature (from disk temps)
    */
   async fetchTemperature(): Promise<MetricData> {
-    const url = `${this.config.url}/api/v1/system/temperature`;
+    const query = `
+      query {
+        array {
+          disks {
+            name
+            temp
+          }
+        }
+      }
+    `;
 
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-      signal: AbortSignal.timeout(5000),
-    });
+    const data = await this.graphqlQuery(query);
+    const disks = data.array.disks || [];
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch temperature: ${response.statusText}`);
-    }
+    // Get average disk temperature
+    const temps = disks
+      .map((d: any) => d.temp)
+      .filter((t: any) => t && t > 0);
 
-    const data = await response.json();
+    const avgTemp = temps.length > 0
+      ? temps.reduce((a: number, b: number) => a + b, 0) / temps.length
+      : 0;
 
     return {
       timestamp: new Date().toISOString(),
-      value: data.cpu || 0,
+      value: Math.round(avgTemp * 10) / 10,
       unit: '°C',
-      metadata: data,
+      metadata: {
+        diskTemps: disks.map((d: any) => ({
+          disk: d.name,
+          temp: d.temp,
+        })),
+      },
     };
   }
 
