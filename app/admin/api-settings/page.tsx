@@ -171,6 +171,29 @@ export default function APISettingsPage() {
     }
   };
 
+  const handlePollNow = async (id: number) => {
+    try {
+      const res = await fetch(`/api/integrations/${id}/poll`, {
+        method: 'POST',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Poll failed');
+      }
+
+      // Display metrics in console and alert
+      console.log('Poll Results:', data.data);
+      const metricsCount = Object.keys(data.data.metrics || {}).length;
+      alert(`✅ Poll successful!\n\nCollected ${metricsCount} metrics.\n\nCheck browser console for details.`);
+
+      await fetchIntegrations();
+    } catch (err) {
+      alert(`❌ Poll Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   const renderCredentialFields = () => {
     switch (formData.service_type) {
       case 'uptime-kuma':
@@ -378,6 +401,13 @@ export default function APISettingsPage() {
                     title="Test connection"
                   >
                     {testingId === integration.id ? '⏳' : '🔌'}
+                  </button>
+                  <button
+                    onClick={() => handlePollNow(integration.id)}
+                    className={styles.pollButton}
+                    title="Poll now (test data collection)"
+                  >
+                    📊
                   </button>
                   <button
                     onClick={() => handleOpenModal(integration)}
