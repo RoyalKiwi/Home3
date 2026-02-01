@@ -159,9 +159,16 @@ export default function ConfigurationPage() {
       setStatusSourceId(newSourceId);
 
       if (newSourceId) {
-        await loadStatusMappings(newSourceId);
+        // Only fetch monitors for new source, preserve existing card mappings
+        const monitorsForNewSource = await fetchMonitorsForIntegration(newSourceId);
+        setMonitors(monitorsForNewSource);
+        setMonitorsByIntegration(prev => new Map(prev).set(newSourceId, monitorsForNewSource));
+
+        // If cards haven't been loaded yet, load them now
+        if (cards.length === 0) {
+          await loadStatusMappings(newSourceId);
+        }
       } else {
-        setCards([]);
         setMonitors([]);
       }
     } catch (err) {
@@ -274,11 +281,13 @@ export default function ConfigurationPage() {
           </select>
         </div>
 
-        {statusSourceId && cards.length > 0 && (
+        {statusSourceId && (
           <div className={styles.mappingsSection}>
             <h3>Card to Monitor Mappings</h3>
             {loadingMappings ? (
               <p>Loading...</p>
+            ) : cards.length === 0 ? (
+              <p>No cards with status enabled found.</p>
             ) : (
               <>
                 <div className={styles.mappingsTable}>
