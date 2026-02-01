@@ -28,6 +28,7 @@ export default function ConfigurationPage() {
   const [monitorsByIntegration, setMonitorsByIntegration] = useState<Map<number, Monitor[]>>(new Map());
   const [loadingMappings, setLoadingMappings] = useState(false);
   const [savingMappings, setSavingMappings] = useState(false);
+  const [mappingsExpanded, setMappingsExpanded] = useState(true);
 
   useEffect(() => {
     fetchIntegrations();
@@ -283,14 +284,24 @@ export default function ConfigurationPage() {
 
         {statusSourceId && (
           <div className={styles.mappingsSection}>
-            <h3>Card to Monitor Mappings</h3>
-            {loadingMappings ? (
-              <p>Loading...</p>
-            ) : cards.length === 0 ? (
-              <p>No cards with status enabled found.</p>
-            ) : (
+            <div
+              className={styles.mappingsHeader}
+              onClick={() => setMappingsExpanded(!mappingsExpanded)}
+            >
+              <h3>Card to Monitor Mappings</h3>
+              <span className={styles.collapseIcon}>
+                {mappingsExpanded ? '▼' : '▶'}
+              </span>
+            </div>
+            {mappingsExpanded && (
               <>
-                <div className={styles.mappingsTable}>
+                {loadingMappings ? (
+                  <p>Loading...</p>
+                ) : cards.length === 0 ? (
+                  <p>No cards with status enabled found.</p>
+                ) : (
+                  <>
+                    <div className={styles.mappingsTable}>
                   <div className={styles.tableHeader}>
                     <span>Card Name</span>
                     <span>Source</span>
@@ -339,6 +350,8 @@ export default function ConfigurationPage() {
                 >
                   {savingMappings ? 'Saving...' : 'Save Mappings'}
                 </button>
+                  </>
+                )}
               </>
             )}
           </div>
