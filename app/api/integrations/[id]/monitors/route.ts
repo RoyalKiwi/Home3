@@ -75,7 +75,7 @@ export async function GET(
 
       monitors = containers.map((c: any) => ({
         name: c.name,
-        status: c.state === 'running' ? ('up' as const) : ('down' as const),
+        status: c.state?.toLowerCase() === 'running' ? ('up' as const) : ('down' as const),
       }));
     } else {
       return NextResponse.json(
