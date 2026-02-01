@@ -8,6 +8,7 @@ const modules = [
   { id: 'console', name: 'Console', icon: '📊', path: '/admin' },
   { id: 'dashboard', name: 'Dashboard', icon: '🎛️', path: '/admin/dashboard' },
   { id: 'users', name: 'Users', icon: '👥', path: '/admin/users' },
+  { id: 'configuration', name: 'Configuration', icon: '⚙️', path: '/admin/configuration' },
   { id: 'api-settings', name: 'API Settings', icon: '🔌', path: '/admin/api-settings' },
   { id: 'monitoring', name: 'Monitoring', icon: '📡', path: '/admin/monitoring' },
 ];
