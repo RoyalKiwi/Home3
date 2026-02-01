@@ -242,7 +242,7 @@ class StatusPoller {
         const dockerData = await (driver as UnraidDriver).fetchDocker();
         const containers = dockerData.metadata?.containers || [];
         monitors = containers.map((c: any) => ({
-          name: c.name,
+          name: c.names?.[0] || c.id, // Unraid returns 'names' array, use first name or fallback to id
           status: c.state?.toLowerCase() === 'running' ? ('up' as const) : ('down' as const),
         }));
       }
