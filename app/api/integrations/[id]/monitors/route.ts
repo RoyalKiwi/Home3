@@ -74,7 +74,7 @@ export async function GET(
       const containers = dockerData.metadata?.containers || [];
 
       monitors = containers.map((c: any) => ({
-        name: c.name,
+        name: (Array.isArray(c.name) ? c.name[0] : c.name) || c.id, // Unraid driver stores names array as 'name'
         status: c.state?.toLowerCase() === 'running' ? ('up' as const) : ('down' as const),
       }));
     } else {
