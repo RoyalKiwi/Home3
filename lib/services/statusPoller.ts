@@ -24,10 +24,10 @@ interface SSEClient {
 
 class StatusPoller {
   // In-memory caches
-  private monitorCache: Map<string, 'up' | 'down'> = new Map();
+  private monitorCacheByIntegration: Map<number, Map<string, 'up' | 'down'>> = new Map();
   private cardStatusCache: Map<number, CardStatus> = new Map();
   private cardMappings: Map<number, CardMapping> = new Map();
-  private sourceReachable = false;
+  private integrationReachable: Map<number, boolean> = new Map();
 
   // SSE management
   private sseClients: Set<SSEClient> = new Set();
@@ -99,9 +99,10 @@ class StatusPoller {
   async restart() {
     console.log('[StatusPoller] Restarting...');
     this.stop();
-    this.monitorCache.clear();
+    this.monitorCacheByIntegration.clear();
     this.cardStatusCache.clear();
     this.cardMappings.clear();
+    this.integrationReachable.clear();
     await this.start();
   }
 
@@ -168,14 +169,51 @@ class StatusPoller {
     }
 
     const db = getDb();
+
+    // Get all unique integration IDs (global + per-card overrides)
+    const uniqueIntegrationIds = new Set<number>();
+
+    // Add global source
+    if (this.currentSourceId) {
+      uniqueIntegrationIds.add(this.currentSourceId);
+    }
+
+    // Add per-card sources
+    this.cardMappings.forEach(mapping => {
+      uniqueIntegrationIds.add(mapping.integrationId);
+    });
+
+    // Poll each integration
+    for (const integrationId of uniqueIntegrationIds) {
+      await this.pollIntegration(integrationId, db);
+    }
+
+    // Build new card status map
+    const previousCache = new Map(this.cardStatusCache);
+    this.buildCardStatusMap();
+
+    // Compute diff and broadcast
+    const diff = this.computeDiff(previousCache, this.cardStatusCache);
+    if (diff) {
+      this.broadcast(diff);
+    }
+
+    const totalMonitors = Array.from(this.monitorCacheByIntegration.values())
+      .reduce((sum, cache) => sum + cache.size, 0);
+    console.log(`[StatusPoller] Poll complete - ${totalMonitors} total monitors, ${this.cardStatusCache.size} cards`);
+  }
+
+  /**
+   * Poll a single integration and update its monitor cache
+   */
+  private async pollIntegration(integrationId: number, db: any) {
     const integration = db
       .prepare('SELECT * FROM integrations WHERE id = ?')
-      .get(this.currentSourceId) as Integration | undefined;
+      .get(integrationId) as Integration | undefined;
 
     if (!integration) {
-      console.error('[StatusPoller] Integration not found');
-      this.sourceReachable = false;
-      this.setAllCardsToWarning();
+      console.error(`[StatusPoller] Integration ${integrationId} not found`);
+      this.integrationReachable.set(integrationId, false);
       return;
     }
 
@@ -209,41 +247,19 @@ class StatusPoller {
         }));
       }
 
-      // Update monitor cache (lowercase keys for case-insensitive lookup)
-      this.monitorCache.clear();
+      // Update monitor cache for this integration (lowercase keys for case-insensitive lookup)
+      const integrationCache = new Map<string, 'up' | 'down'>();
       monitors.forEach(monitor => {
-        this.monitorCache.set(monitor.name.toLowerCase(), monitor.status);
+        integrationCache.set(monitor.name.toLowerCase(), monitor.status);
       });
+      this.monitorCacheByIntegration.set(integrationId, integrationCache);
 
-      this.sourceReachable = true;
+      this.integrationReachable.set(integrationId, true);
 
-      // Build new card status map
-      const previousCache = new Map(this.cardStatusCache);
-      this.buildCardStatusMap();
-
-      // Compute diff and broadcast
-      const diff = this.computeDiff(previousCache, this.cardStatusCache);
-      if (diff) {
-        this.broadcast(diff);
-      }
-
-      console.log(`[StatusPoller] Poll successful - ${monitors.length} monitors, ${this.cardStatusCache.size} cards`);
+      console.log(`[StatusPoller] Polled integration ${integrationId} (${integration.service_name}): ${monitors.length} monitors`);
     } catch (error) {
-      console.error('[StatusPoller] Poll failed:', error instanceof Error ? error.message : error);
-      this.sourceReachable = false;
-
-      // Set all cards from this source to warning
-      const previousCache = new Map(this.cardStatusCache);
-      this.cardMappings.forEach((mapping, cardId) => {
-        if (mapping.integrationId === this.currentSourceId) {
-          this.cardStatusCache.set(cardId, 'warning');
-        }
-      });
-
-      const diff = this.computeDiff(previousCache, this.cardStatusCache);
-      if (diff) {
-        this.broadcast(diff);
-      }
+      console.error(`[StatusPoller] Failed to poll integration ${integrationId}:`, error instanceof Error ? error.message : error);
+      this.integrationReachable.set(integrationId, false);
     }
   }
 
@@ -265,14 +281,24 @@ class StatusPoller {
         return;
       }
 
-      if (!this.sourceReachable) {
-        // Source unreachable → warning
+      // Check if the integration for this card is reachable
+      const isReachable = this.integrationReachable.get(mapping.integrationId);
+      if (isReachable === false) {
+        // Integration unreachable → warning
+        this.cardStatusCache.set(card.id, 'warning');
+        return;
+      }
+
+      // Get monitor cache for this card's integration
+      const integrationCache = this.monitorCacheByIntegration.get(mapping.integrationId);
+      if (!integrationCache) {
+        // No cache for this integration → warning
         this.cardStatusCache.set(card.id, 'warning');
         return;
       }
 
       // Lookup monitor status (case-insensitive)
-      const monitorStatus = this.monitorCache.get(mapping.monitorName.toLowerCase());
+      const monitorStatus = integrationCache.get(mapping.monitorName.toLowerCase());
 
       if (!monitorStatus) {
         // Monitor not found in poll results → warning
