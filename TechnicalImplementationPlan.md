@@ -1,9 +1,9 @@
 # Homepage3: Technical Implementation Plan & Assessment
 
 **Generated**: 2026-01-29
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-02-01
 **Source Document**: [FullProjectPlan.md](./FullProjectPlan.md)
-**Status**: Phase 0 ✅ COMPLETE | Phase 1 ✅ COMPLETE | Phase 2 ✅ COMPLETE | Phase 3 ✅ COMPLETE | Phase 5 ✅ COMPLETE
+**Status**: Phase 0 ✅ COMPLETE | Phase 1 ✅ COMPLETE | Phase 2 ✅ COMPLETE | Phase 3 ✅ COMPLETE | Phase 4 ✅ COMPLETE | Phase 5 ✅ COMPLETE
 
 ---
 
@@ -734,68 +734,147 @@ Docker container on private LAN, optimized for low-powered hardware (tablets/old
 
 ---
 
-### Phase 4: Real-Time Monitoring (SSE & Drivers)
+### Phase 4: Real-Time Monitoring (SSE & Drivers) ✅ COMPLETE
 
-#### Task 4.1: SSE Infrastructure
+#### Task 4.1: SSE Infrastructure ✅ COMPLETE
 **What to create:**
-- `/lib/sse.ts`: SSE connection manager (track clients, broadcast events)
-- `/api/stream/cards/route.ts`: SSE endpoint for card status
-- Client-side EventSource in `/components/cards/AppCard.tsx`
+- `/lib/services/statusPoller.ts`: Status polling service with SSE broadcasting
+- `/api/status/stream/route.ts`: SSE endpoint for real-time card status updates
+- Client-side EventSource integration in home page components
 
 **Why:** Satisfies real-time flow from Section 4
 
 **Acceptance criteria:**
-- Browser connects to `/api/stream/cards`
-- Server sends `data: {...}` events
-- Browser updates UI without refresh
+- Browser connects to SSE endpoint
+- Server sends status update events
+- Browser updates card status indicators without refresh
 
 **Test plan:**
 - Open browser console
 - Watch network tab → see `event-stream` connection
 - Trigger status update → see UI change
 
-#### Task 4.2: Base Driver Interface
+#### Task 4.2: Base Driver Interface ✅ COMPLETE
 **What to create:**
-- `/drivers/base.ts`: `BaseDriver` abstract class with `poll()` method
-- `/lib/services/monitoring.ts`: Orchestrator that calls `poll()` on all active drivers
+- `/drivers/base.ts`: `BaseDriver` abstract class with `fetchMetric()` method
+- `/lib/services/driverFactory.ts`: Factory to create driver instances
+- Driver polling orchestrator in statusPoller service
 
 **Why:** Establishes driver architecture from Section 5
 
 **Acceptance criteria:**
-- BaseDriver defines contract: `poll() → Promise<Status>`
-- Orchestrator iterates integrations table, calls driver, handles errors
+- BaseDriver defines contract for all integrations
+- Factory creates appropriate driver based on service type
+- Orchestrator polls active integrations at configured intervals
 
-**Test plan:** Mock driver → verify poll() called at interval
+**Test plan:** Configure integration → verify driver polls at correct interval
 
-#### Task 4.3: Implement Core Drivers
+#### Task 4.3: Implement Core Drivers ✅ COMPLETE
 **What to create:**
-- `/drivers/unraid.ts`: Poll Unraid API for system stats (CPU, RAM, Storage)
-- `/drivers/uptime-kuma.ts`: Poll Uptime Kuma for service status
-- `/drivers/plex.ts`: Poll Plex for active sessions
+- `/drivers/unraid.ts`: Unraid GraphQL API driver (system stats, Docker containers)
+- `/drivers/uptime-kuma.ts`: Uptime Kuma API driver (monitor status)
+- `/drivers/netdata.ts`: Netdata API driver (system metrics)
 
 **Why:** Satisfies integration ecosystem from Section 3
 
 **Acceptance criteria:**
-- Each driver returns `{status: 'online'|'warning'|'offline', data: {...}}`
-- 2s timeout = offline
+- Each driver implements BaseDriver interface
+- Unraid driver fetches Docker container states for status monitoring
+- Uptime Kuma driver fetches monitor list and status
+- Proper error handling and timeout logic
 
 **Test plan:**
-- Configure integration in DB
-- Start polling → verify status updates in SSE stream
+- Configure Unraid integration → verify Docker container status
+- Configure Uptime Kuma → verify monitor status
+- Disconnect integration → verify graceful failure
 
-#### Task 4.4: Admin Tactical Ticker
+#### Task 4.4: Status Configuration Page ✅ COMPLETE
 **What to create:**
-- `/api/stream/ticker/route.ts`: SSE endpoint for aggregate stats
-- `/components/admin/TacticalTicker.tsx`: Status bar at top of admin pages
-- Aggregate CPU/RAM/Storage from primary Unraid driver
+- `/app/admin/configuration/page.tsx`: Dedicated Configuration page
+- Status source selection (global + per-card overrides)
+- Card-to-monitor mapping table with 3 columns (Card Name | Source | Monitor/Container)
+- Auto-match functionality for initial setup
+- Collapsible mappings section
 
-**Why:** Satisfies admin ticker from Section 3
+**Why:** Provides centralized status configuration separate from API Settings
 
 **Acceptance criteria:**
-- Ticker shows real-time CPU/RAM/Storage
-- Only visible on `/admin/*` routes
+- Global status source selection dropdown
+- Per-card source override capability
+- Dynamic monitor list loading based on selected source
+- Preserve monitor selections when changing global source
+- Collapsible mappings table for cleaner UI
+- Save mappings updates database and restarts poller
 
-**Test plan:** Navigate to `/admin` → see ticker update every 5s
+**Test plan:**
+- Select global source → verify monitors load
+- Override individual card source → verify different monitors load
+- Change global source → verify existing selections preserved
+- Collapse/expand mappings → verify state persists
+- Save mappings → verify cards show correct status on home page
+
+#### Task 4.5: Multi-Source Status Polling ✅ COMPLETE
+**What to create:**
+- Refactored `statusPoller` to support multiple integration sources
+- Per-integration monitor caching system
+- Integration reachability tracking
+- Support for both global and per-card status sources
+
+**Why:** Allows mixed monitoring sources (e.g., some cards from Unraid, others from Uptime Kuma)
+
+**Acceptance criteria:**
+- Polls all unique integrations (global + per-card overrides)
+- Maintains separate monitor cache for each integration
+- Tracks integration reachability independently
+- Sets card status to warning if integration unreachable
+- Case-insensitive monitor name matching
+
+**Test plan:**
+- Configure cards with different status sources
+- Verify all integrations are polled
+- Disconnect one integration → only affected cards show warning
+- Verify correct status colors (green/orange/red) on home page
+
+#### Task 4.6: Unraid Integration Bug Fixes ✅ COMPLETE
+**What created:**
+- Fixed Unraid container name extraction bug
+- Updated monitors route to correctly access container names array
+- Updated status poller with same fix
+
+**Why:** Unraid API returns container names as array, code was accessing wrong property
+
+**Acceptance criteria:**
+- Unraid containers display proper names in dropdowns
+- Status polling correctly matches container names to cards
+- Containers show correct status (green when running, red when stopped)
+
+**Test plan:**
+- Configure Unraid as status source
+- Verify container names appear in dropdown (not just "(up)")
+- Verify status dots update correctly based on container state
+
+#### Task 4.7: Configuration Page UX Improvements ✅ COMPLETE
+**What created:**
+- Preserve monitor selections when changing global source
+- Make mappings table always visible when source is selected
+- Add collapsible section for Card to Monitor Mappings
+- Glassmorphic styling matching site design system
+
+**Why:** Improve usability and prevent data loss during configuration
+
+**Acceptance criteria:**
+- Changing global source doesn't reset unsaved monitor selections
+- Mappings table persists when navigating away and back
+- Click header to collapse/expand mappings section
+- Visual indicator (▼/▶) shows collapse state
+- Hover effect on collapsible header
+
+**Test plan:**
+- Configure monitor selections
+- Change global source → verify selections preserved
+- Navigate to different page and back → table still visible
+- Click header → section collapses/expands
+- Refresh page → collapsed state maintained during session
 
 ---
 
@@ -1360,6 +1439,7 @@ export async function GET() {
 | 2026-01-30 | 2.0 | Phase 2 completed: Complete CRUD APIs (categories, subcategories, cards) and Admin Dashboard UI with drag-and-drop management |
 | 2026-01-30 | 3.0 | Phase 3 completed: Branding & Asset Management - Icon fetch service, color extraction, gradient generation, and asset cleanup |
 | 2026-01-30 | 4.0 | Phase 5 completed: Home Grid Rendering - AppCard components, glassmorphic styling, responsive grid layout, search/filter, and category collapse |
+| 2026-02-01 | 5.0 | Phase 4 completed: Real-Time Monitoring - SSE infrastructure, driver architecture (Unraid/Uptime Kuma/Netdata), multi-source status polling, Configuration page with card-to-monitor mappings, per-card source overrides, collapsible UI sections, and Unraid container name bug fixes |
 
 ---
 
