@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
         body.to_status ?? null,
         body.target_type,
         body.target_id ?? null,
-        body.is_active ?? true,
+        (body.is_active ?? true) ? 1 : 0,
         body.cooldown_minutes ?? 30,
         body.severity ?? 'warning'
       );

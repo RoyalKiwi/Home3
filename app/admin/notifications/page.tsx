@@ -3,13 +3,7 @@
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 
-type Tab = 'rules' | 'webhooks' | 'maintenance';
-
-type WebhookForm = {
-  name: string;
-  provider_type: 'discord' | 'telegram' | 'pushover';
-  webhook_url: string;
-};
+type Tab = 'rules' | 'maintenance';
 
 type RuleForm = {
   webhook_id: number | null;
@@ -25,23 +19,16 @@ type RuleForm = {
 };
 
 export default function NotificationsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('webhooks');
+  const [activeTab, setActiveTab] = useState<Tab>('rules');
   const [rules, setRules] = useState<any[]>([]);
   const [webhooks, setWebhooks] = useState<any[]>([]);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Modal states
-  const [showWebhookModal, setShowWebhookModal] = useState(false);
   const [showRuleModal, setShowRuleModal] = useState(false);
 
   // Form states
-  const [webhookForm, setWebhookForm] = useState<WebhookForm>({
-    name: '',
-    provider_type: 'discord',
-    webhook_url: '',
-  });
-
   const [ruleForm, setRuleForm] = useState<RuleForm>({
     webhook_id: null,
     name: '',
@@ -91,30 +78,6 @@ export default function NotificationsPage() {
       setMaintenanceEnabled(data.data?.enabled || false);
     } catch (error) {
       console.error('Failed to load maintenance mode:', error);
-    }
-  }
-
-  async function handleCreateWebhook(e: React.FormEvent) {
-    e.preventDefault();
-
-    try {
-      const res = await fetch('/api/webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookForm),
-      });
-
-      if (res.ok) {
-        await loadWebhooks();
-        setShowWebhookModal(false);
-        setWebhookForm({ name: '', provider_type: 'discord', webhook_url: '' });
-        alert('Webhook created successfully!');
-      } else {
-        const data = await res.json();
-        alert(`Failed to create webhook: ${data.error}`);
-      }
-    } catch (error) {
-      alert('Failed to create webhook');
     }
   }
 
@@ -173,35 +136,6 @@ export default function NotificationsPage() {
       }
     } catch (error) {
       alert('Failed to create rule');
-    }
-  }
-
-  async function handleDeleteWebhook(id: number, name: string) {
-    if (!confirm(`Delete webhook "${name}"? This will also delete all associated rules.`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/webhooks/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadWebhooks();
-        loadRules(); // Reload rules since they may have been cascaded
-        alert('Webhook deleted successfully');
-      } else {
-        alert('Failed to delete webhook');
-      }
-    } catch (error) {
-      alert('Failed to delete webhook');
-    }
-  }
-
-  async function handleTestWebhook(id: number) {
-    try {
-      const res = await fetch(`/api/webhooks/${id}/test`, { method: 'POST' });
-      const data = await res.json();
-      alert(data.message || (data.success ? 'Test sent successfully!' : 'Test failed'));
-    } catch (error) {
-      alert('Failed to send test notification');
     }
   }
 
@@ -302,12 +236,6 @@ export default function NotificationsPage() {
           Rules ({rules.length})
         </button>
         <button
-          className={`${styles.tab} ${activeTab === 'webhooks' ? styles.tabActive : ''}`}
-          onClick={() => setActiveTab('webhooks')}
-        >
-          Webhooks ({webhooks.length})
-        </button>
-        <button
           className={`${styles.tab} ${activeTab === 'maintenance' ? styles.tabActive : ''}`}
           onClick={() => setActiveTab('maintenance')}
         >
@@ -336,7 +264,7 @@ export default function NotificationsPage() {
 
             {webhooks.length === 0 && (
               <div className={styles.hint} style={{ marginTop: '16px', color: '#F59E0B' }}>
-                You must create at least one webhook before you can create rules.
+                You must create at least one webhook before you can create rules. Configure webhooks in API Settings.
               </div>
             )}
 
@@ -393,71 +321,6 @@ export default function NotificationsPage() {
           </div>
         )}
 
-        {/* WEBHOOKS TAB */}
-        {activeTab === 'webhooks' && (
-          <div className={styles.tabContent}>
-            <div className={styles.sectionHeader}>
-              <h2>Webhooks</h2>
-              <button
-                className={styles.btnPrimary}
-                onClick={() => setShowWebhookModal(true)}
-              >
-                Add Webhook
-              </button>
-            </div>
-            <p className={styles.hint}>
-              Webhooks define where notifications are sent (Discord, Telegram, Pushover).
-            </p>
-
-            {webhooks.length === 0 ? (
-              <div className={styles.emptyState}>
-                <p>No webhooks configured.</p>
-                <p className={styles.hint}>
-                  Add webhooks to start receiving notifications.
-                </p>
-              </div>
-            ) : (
-              <div className={styles.webhookGrid}>
-                {webhooks.map(webhook => (
-                  <div key={webhook.id} className={styles.webhookCard}>
-                    <div className={styles.webhookHeader}>
-                      <span className={styles.webhookIcon}>
-                        {getProviderEmoji(webhook.provider_type)}
-                      </span>
-                      <span className={styles.webhookName}>{webhook.name}</span>
-                      {webhook.is_active ? (
-                        <span className={styles.statusDot}></span>
-                      ) : (
-                        <span className={styles.statusDotInactive}></span>
-                      )}
-                    </div>
-                    <div className={styles.webhookProvider}>
-                      {webhook.provider_type}
-                    </div>
-                    <div className={styles.webhookUrl}>
-                      URL: {webhook.webhook_url_masked}
-                    </div>
-                    <div className={styles.webhookActions}>
-                      <button
-                        className={styles.btnPrimary}
-                        onClick={() => handleTestWebhook(webhook.id)}
-                      >
-                        Test
-                      </button>
-                      <button
-                        className={styles.btnDanger}
-                        onClick={() => handleDeleteWebhook(webhook.id, webhook.name)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* MAINTENANCE TAB */}
         {activeTab === 'maintenance' && (
           <div className={styles.tabContent}>
@@ -495,68 +358,6 @@ export default function NotificationsPage() {
           </div>
         )}
       </div>
-
-      {/* WEBHOOK MODAL */}
-      {showWebhookModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowWebhookModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>Add Webhook</h2>
-              <button className={styles.modalClose} onClick={() => setShowWebhookModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleCreateWebhook}>
-              <div className={styles.formGroup}>
-                <label>Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Discord - Ops Team"
-                  value={webhookForm.name}
-                  onChange={(e) => setWebhookForm({ ...webhookForm, name: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Provider</label>
-                <select
-                  value={webhookForm.provider_type}
-                  onChange={(e) => setWebhookForm({ ...webhookForm, provider_type: e.target.value as any })}
-                  required
-                >
-                  <option value="discord">Discord</option>
-                  <option value="telegram">Telegram</option>
-                  <option value="pushover">Pushover</option>
-                </select>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Webhook URL</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={webhookForm.webhook_url}
-                  onChange={(e) => setWebhookForm({ ...webhookForm, webhook_url: e.target.value })}
-                  required
-                />
-                <div className={styles.hint}>
-                  {webhookForm.provider_type === 'discord' && 'Server Settings → Integrations → Webhooks'}
-                  {webhookForm.provider_type === 'telegram' && 'Create bot via @BotFather, format: https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>'}
-                  {webhookForm.provider_type === 'pushover' && 'Format: token:user_key (e.g., abc123:xyz789)'}
-                </div>
-              </div>
-
-              <div className={styles.modalActions}>
-                <button type="button" className={styles.btnSecondary} onClick={() => setShowWebhookModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className={styles.btnPrimary}>
-                  Create Webhook
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* RULE MODAL */}
       {showRuleModal && (

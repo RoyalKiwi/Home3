@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
+import WebhookSection from '@/components/admin/WebhookSection';
 import type { Integration, IntegrationCredentials } from '@/lib/types';
 
 type IntegrationType = 'uptime-kuma' | 'netdata' | 'unraid';
@@ -376,6 +377,14 @@ export default function APISettingsPage() {
       {error && !showModal && (
         <div className={styles.error}>{error}</div>
       )}
+
+      {/* Webhook Configurations Section */}
+      <WebhookSection />
+
+      {/* API Integrations Section */}
+      <div className={styles.sectionHeader}>
+        <h2>API Integrations</h2>
+      </div>
 
       {integrations.length === 0 ? (
         <div className={styles.empty}>
