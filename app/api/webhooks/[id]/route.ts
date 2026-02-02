@@ -10,12 +10,13 @@ import type { UpdateWebhookRequest } from '@/lib/types';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth();
 
-    const webhookId = parseInt(params.id);
+    const { id } = await params;
+    const webhookId = parseInt(id);
     if (isNaN(webhookId)) {
       return NextResponse.json({ error: 'Invalid webhook ID' }, { status: 400 });
     }
@@ -83,12 +84,13 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth();
 
-    const webhookId = parseInt(params.id);
+    const { id } = await params;
+    const webhookId = parseInt(id);
     if (isNaN(webhookId)) {
       return NextResponse.json({ error: 'Invalid webhook ID' }, { status: 400 });
     }

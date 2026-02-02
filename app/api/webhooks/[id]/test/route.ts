@@ -8,12 +8,13 @@ import { notificationService } from '@/lib/services/notifications';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth();
 
-    const webhookId = parseInt(params.id);
+    const { id } = await params;
+    const webhookId = parseInt(id);
     if (isNaN(webhookId)) {
       return NextResponse.json({ error: 'Invalid webhook ID' }, { status: 400 });
     }
