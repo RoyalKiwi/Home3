@@ -254,13 +254,25 @@ export default function NotificationsPage() {
   function formatCondition(rule: any): string {
     if (rule.condition_type === 'threshold' && rule.threshold_operator && rule.threshold_value !== null) {
       const operators: Record<string, string> = { gt: '>', lt: '<', gte: '≥', lte: '≤', eq: '=' };
-      return `${rule.metric_type} ${operators[rule.threshold_operator] || rule.threshold_operator} ${rule.threshold_value}`;
+      const metricName = rule.metric_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+      return `${metricName} ${operators[rule.threshold_operator] || rule.threshold_operator} ${rule.threshold_value}`;
     } else if (rule.condition_type === 'status_change') {
       const from = rule.from_status || 'any';
       const to = rule.to_status || 'any';
-      return `${from} → ${to}`;
+      return `Status: ${from} → ${to}`;
     }
     return rule.condition_type;
+  }
+
+  function formatSource(rule: any): string {
+    if (rule.target_type === 'all') {
+      return 'All Cards';
+    } else if (rule.target_type === 'card') {
+      return `Card #${rule.target_id}`;
+    } else if (rule.target_type === 'integration') {
+      return `Integration #${rule.target_id}`;
+    }
+    return 'Unknown';
   }
 
   function getProviderEmoji(provider: string): string {
@@ -338,25 +350,26 @@ export default function NotificationsPage() {
             ) : (
               <div className={styles.table}>
                 <div className={styles.tableHeader}>
-                  <div className={styles.col1}>Name</div>
-                  <div className={styles.col2}>Condition</div>
-                  <div className={styles.col3}>Webhook</div>
-                  <div className={styles.col4}>Status</div>
-                  <div className={styles.col5}>Actions</div>
+                  <div>RULE NAME</div>
+                  <div>SOURCE</div>
+                  <div>CONDITION</div>
+                  <div>WEBHOOK</div>
+                  <div>STATUS</div>
+                  <div>ACTIONS</div>
                 </div>
                 {rules.map(rule => (
                   <div key={rule.id} className={styles.tableRow}>
-                    <div className={styles.col1}>
+                    <div>
                       <strong>{rule.name}</strong>
-                      <span className={styles.badge}>{rule.severity}</span>
                     </div>
-                    <div className={styles.col2}>{formatCondition(rule)}</div>
-                    <div className={styles.col3}>
+                    <div>{formatSource(rule)}</div>
+                    <div>{formatCondition(rule)}</div>
+                    <div>
                       {getProviderEmoji(rule.webhook_provider_type)} {rule.webhook_name}
                     </div>
-                    <div className={styles.col4}>
+                    <div>
                       <span className={rule.is_active ? styles.statusActive : styles.statusInactive}>
-                        {rule.is_active ? 'Active' : 'Inactive'}
+                        {rule.is_active ? '● Active' : '○ Inactive'}
                       </span>
                     </div>
                     <div className={styles.col5}>
