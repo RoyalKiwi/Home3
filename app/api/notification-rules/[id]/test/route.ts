@@ -10,12 +10,13 @@ import type { Severity } from '@/lib/types';
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await requireAuth();
 
-    const ruleId = parseInt(params.id);
+    const { id } = await params;
+    const ruleId = parseInt(id);
     if (isNaN(ruleId)) {
       return NextResponse.json({ error: 'Invalid rule ID' }, { status: 400 });
     }
