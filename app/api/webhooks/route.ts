@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         `INSERT INTO webhook_configs (name, provider_type, webhook_url, is_active)
          VALUES (?, ?, ?, ?)`
       )
-      .run(body.name, body.provider_type, encryptedUrl, body.is_active ?? true);
+      .run(body.name, body.provider_type, encryptedUrl, (body.is_active ?? true) ? 1 : 0);
 
     const webhook = db
       .prepare('SELECT id, name, provider_type, is_active, created_at, updated_at FROM webhook_configs WHERE id = ?')
