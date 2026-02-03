@@ -9,6 +9,7 @@
 import { getDb } from '../db';
 import { decrypt } from '../crypto';
 import { renderNotification } from './templateRenderer';
+import './initNotifications'; // Initialize notification system on module load
 import type {
   WebhookProviderType,
   NotificationPayload,
