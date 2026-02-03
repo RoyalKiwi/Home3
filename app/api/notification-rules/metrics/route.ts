@@ -1,56 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
-import { MetricRegistry } from '@/lib/services/metricRegistry';
-import type { ParsedMetricDefinition } from '@/lib/types';
-
 /**
  * GET /api/notification-rules/metrics
- * Get metadata about available metric types for notification rules (admin-only)
- * Used by UI to populate dropdowns and show appropriate condition fields
- *
- * Query params:
- *  - integration_type: Filter by integration type (netdata, unraid, uptime-kuma, or "all")
+ * Legacy endpoint - deprecated in favor of /api/integrations/[id]/capabilities
+ * Returns empty list until UI is migrated to new schema
  */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
+
 export async function GET(request: NextRequest) {
   try {
     await requireAuth();
 
-    const { searchParams } = new URL(request.url);
-    const integrationType = searchParams.get('integration_type');
-
-    // Get metrics from database via MetricRegistry
-    // Filter out legacy metrics (integration_type = NULL) - these are generic placeholders
-    const metrics = integrationType
-      ? MetricRegistry.getMetricsByIntegrationType(integrationType)
-      : MetricRegistry.getAllMetrics().filter(m => m.integration_type !== null);
-
-    // Parse operators JSON string to array for each metric
-    const parsedMetrics: ParsedMetricDefinition[] = metrics.map((metric) => ({
-      ...metric,
-      operators: JSON.parse(metric.operators || '[]'),
-    }));
-
-    // Transform to response format compatible with UI
-    const response = parsedMetrics.map((metric) => ({
-      id: metric.id,
-      metricKey: metric.metric_key,
-      displayName: metric.display_name,
-      integrationType: metric.integration_type,
-      driverCapability: metric.driver_capability,
-      category: metric.category,
-      conditionType: metric.condition_type,
-      operators: metric.operators,
-      unit: metric.unit,
-      description: metric.description,
-    }));
-
+    // Return empty array - this endpoint is deprecated
+    // UI should use /api/integrations/[id]/capabilities for new system
     return NextResponse.json({
       success: true,
-      data: response,
+      data: [],
       meta: {
-        total: response.length,
-        filtered: !!integrationType,
-        integrationType: integrationType || 'all',
+        total: 0,
+        deprecated: true,
+        message: 'This endpoint is deprecated. Use /api/integrations/[id]/capabilities for new notification system.'
       },
     });
   } catch (error) {

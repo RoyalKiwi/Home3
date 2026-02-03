@@ -9,7 +9,12 @@
       "Bash(git push:*)",
       "Bash(tree:*)",
       "Bash(git show:*)",
-      "Bash(git diff:*)"
+      "Bash(git diff:*)",
+      "Bash(xargs ls:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(git log:*)",
+      "Bash(is not a valid type for the function 's second argument.\"\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }

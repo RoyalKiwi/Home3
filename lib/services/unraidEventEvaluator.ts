@@ -7,7 +7,8 @@
 
 import { getDb } from '../db';
 import { notificationService } from './notifications';
-import { MetricRegistry } from './metricRegistry';
+// TODO: Re-implement Unraid webhook notifications for new SSE-driven system
+// import { MetricRegistry } from './metricRegistry';
 import type { Severity } from '../types';
 
 /**
@@ -126,6 +127,14 @@ export async function processUnraidEvent(event: UnraidWebhookEvent): Promise<voi
       return;
     }
 
+    // TODO: Re-implement metric lookup for new notification system
+    // For now, Unraid webhook notifications are disabled until UI migration is complete
+    console.log(`[UnraidEvent] Unraid webhook notifications temporarily disabled (metric: ${metricKey})`);
+    console.log('[UnraidEvent] Will be re-enabled after notification system migration is complete');
+    markEventProcessed(eventId);
+    return;
+
+    /*
     // Look up metric definition
     const metric = MetricRegistry.getMetricByKey(metricKey);
 
@@ -148,6 +157,10 @@ export async function processUnraidEvent(event: UnraidWebhookEvent): Promise<voi
         )
         AND nr.condition_type = 'presence'
     `).all(metric.id, metricKey) as any[];
+    */
+
+    const db = getDb();
+    const rules: any[] = [];
 
     if (rules.length === 0) {
       console.log(`[UnraidEvent] No active rules for metric: ${metricKey}`);

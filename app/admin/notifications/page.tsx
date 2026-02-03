@@ -355,7 +355,9 @@ export default function NotificationsPage() {
           >
             <option value="">Select metric...</option>
             {availableMetrics.map((m: any) => (
-              <option key={m.id} value={m.id}>{m.displayName}</option>
+              <option key={m.id} value={m.id}>
+                {m.displayName} {m.integrationType ? `(${m.integrationType})` : ''}
+              </option>
             ))}
           </select>
 

@@ -28,3 +28,9 @@ export const statusSSE = new SSEManager();
  * Future: Admin tactical ticker broadcasts
  */
 export const tickerSSE = new SSEManager();
+
+/**
+ * Metrics SSE Manager
+ * Broadcasts integration metrics data for notifications and monitoring
+ */
+export const metricsSSE = new SSEManager();

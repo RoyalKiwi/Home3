@@ -4,7 +4,7 @@
  */
 
 import { getDb } from '../db';
-import { MetricRegistry } from './metricRegistry';
+import { notificationEvaluator } from './notificationEvaluator';
 
 /**
  * Initialize notification system data
@@ -14,13 +14,14 @@ export function initNotificationSystem(): void {
   try {
     console.log('[NotificationInit] Initializing notification system...');
 
-    // Sync metric definitions
+    // Start notification evaluator
     try {
-      MetricRegistry.syncDriverCapabilities();
-      const metrics = MetricRegistry.getAllMetrics();
-      console.log(`[NotificationInit] Metrics synced: ${metrics.length} total`);
+      if (typeof window === 'undefined') {
+        notificationEvaluator.start();
+        console.log('[NotificationInit] Notification evaluator started');
+      }
     } catch (error) {
-      console.error('[NotificationInit] Failed to sync metrics:', error);
+      console.error('[NotificationInit] Failed to start notification evaluator:', error);
     }
 
     // Seed templates if table is empty
