@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import WebhookSection from '@/components/admin/WebhookSection';
+import UnraidWebhookSection from '@/components/admin/UnraidWebhookSection';
 import type { Integration, IntegrationCredentials } from '@/lib/types';
 
 type IntegrationType = 'uptime-kuma' | 'netdata' | 'unraid';
@@ -380,6 +381,9 @@ export default function APISettingsPage() {
 
       {/* Webhook Configurations Section */}
       <WebhookSection />
+
+      {/* Unraid Webhook Receiver Section */}
+      <UnraidWebhookSection />
 
       {/* API Integrations Section */}
       <div className={styles.sectionHeader}>

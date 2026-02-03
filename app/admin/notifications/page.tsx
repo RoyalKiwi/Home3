@@ -3,51 +3,62 @@
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 
-type Tab = 'rules' | 'maintenance';
+type Tab = 'rules' | 'templates' | 'maintenance';
 
-type RuleForm = {
+interface Rule {
+  id?: number;
   webhook_id: number | null;
   name: string;
-  metric_type: string;
+  metric_definition_id: number | null;
   condition_type: 'threshold' | 'status_change';
   threshold_operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq' | null;
   threshold_value: number | null;
   from_status: string | null;
   to_status: string | null;
+  target_type: 'all' | 'card' | 'integration';
+  target_id: number | null;
   severity: 'info' | 'warning' | 'critical';
   cooldown_minutes: number;
-};
+  template_id: number | null;
+  aggregation_enabled: boolean;
+  aggregation_window_ms: number | null;
+  is_active: boolean;
+  // Joined fields
+  webhook_name?: string;
+  webhook_provider_type?: string;
+  integration_name?: string;
+  card_name?: string;
+}
 
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('rules');
-  const [rules, setRules] = useState<any[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
   const [webhooks, setWebhooks] = useState<any[]>([]);
+  const [integrations, setIntegrations] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any[]>([]);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Modal states
-  const [showRuleModal, setShowRuleModal] = useState(false);
+  // Editing state
+  const [editingId, setEditingId] = useState<number | null | 'new'>(null);
+  const [editForm, setEditForm] = useState<Rule | null>(null);
 
-  // Form states
-  const [ruleForm, setRuleForm] = useState<RuleForm>({
-    webhook_id: null,
-    name: '',
-    metric_type: 'server_offline',
-    condition_type: 'status_change',
-    threshold_operator: null,
-    threshold_value: null,
-    from_status: 'online',
-    to_status: 'offline',
-    severity: 'warning',
-    cooldown_minutes: 30,
-  });
-
-  // Load data on mount
   useEffect(() => {
-    loadRules();
-    loadWebhooks();
-    loadMaintenanceMode();
+    loadData();
   }, []);
+
+  async function loadData() {
+    await Promise.all([
+      loadRules(),
+      loadWebhooks(),
+      loadIntegrations(),
+      loadTemplates(),
+      loadMetrics(),
+      loadMaintenanceMode(),
+    ]);
+    setLoading(false);
+  }
 
   async function loadRules() {
     try {
@@ -56,8 +67,6 @@ export default function NotificationsPage() {
       setRules(data.data || []);
     } catch (error) {
       console.error('Failed to load rules:', error);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -71,6 +80,36 @@ export default function NotificationsPage() {
     }
   }
 
+  async function loadIntegrations() {
+    try {
+      const res = await fetch('/api/integrations');
+      const data = await res.json();
+      setIntegrations(data.data || []);
+    } catch (error) {
+      console.error('Failed to load integrations:', error);
+    }
+  }
+
+  async function loadTemplates() {
+    try {
+      const res = await fetch('/api/notification-templates');
+      const data = await res.json();
+      setTemplates(data.data || []);
+    } catch (error) {
+      console.error('Failed to load templates:', error);
+    }
+  }
+
+  async function loadMetrics() {
+    try {
+      const res = await fetch('/api/notification-rules/metrics');
+      const data = await res.json();
+      setMetrics(data.data || []);
+    } catch (error) {
+      console.error('Failed to load metrics:', error);
+    }
+  }
+
   async function loadMaintenanceMode() {
     try {
       const res = await fetch('/api/settings/maintenance');
@@ -81,68 +120,68 @@ export default function NotificationsPage() {
     }
   }
 
-  async function handleCreateRule(e: React.FormEvent) {
-    e.preventDefault();
+  function handleAddRule() {
+    const newRule: Rule = {
+      webhook_id: webhooks[0]?.id || null,
+      name: '',
+      metric_definition_id: null,
+      condition_type: 'threshold',
+      threshold_operator: 'gt',
+      threshold_value: null,
+      from_status: null,
+      to_status: null,
+      target_type: 'all',
+      target_id: null,
+      severity: 'warning',
+      cooldown_minutes: 30,
+      template_id: null,
+      aggregation_enabled: false,
+      aggregation_window_ms: 60000,
+      is_active: true,
+    };
+    setEditForm(newRule);
+    setEditingId('new');
+  }
 
-    if (!ruleForm.webhook_id) {
-      alert('Please select a webhook');
-      return;
-    }
+  function handleEditRule(rule: Rule) {
+    setEditForm({ ...rule });
+    setEditingId(rule.id!);
+  }
+
+  function handleCancelEdit() {
+    setEditForm(null);
+    setEditingId(null);
+  }
+
+  async function handleSaveRule() {
+    if (!editForm) return;
 
     try {
-      const payload: any = {
-        webhook_id: ruleForm.webhook_id,
-        name: ruleForm.name,
-        metric_type: ruleForm.metric_type,
-        condition_type: ruleForm.condition_type,
-        severity: ruleForm.severity,
-        cooldown_minutes: ruleForm.cooldown_minutes,
-        target_type: 'all',
-      };
+      const isNew = editingId === 'new';
+      const url = isNew ? '/api/notification-rules' : `/api/notification-rules/${editingId}`;
+      const method = isNew ? 'POST' : 'PATCH';
 
-      if (ruleForm.condition_type === 'threshold') {
-        payload.threshold_operator = ruleForm.threshold_operator;
-        payload.threshold_value = ruleForm.threshold_value;
-      } else {
-        payload.from_status = ruleForm.from_status;
-        payload.to_status = ruleForm.to_status;
-      }
-
-      const res = await fetch('/api/notification-rules', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(editForm),
       });
 
       if (res.ok) {
         await loadRules();
-        setShowRuleModal(false);
-        setRuleForm({
-          webhook_id: null,
-          name: '',
-          metric_type: 'server_offline',
-          condition_type: 'status_change',
-          threshold_operator: null,
-          threshold_value: null,
-          from_status: 'online',
-          to_status: 'offline',
-          severity: 'warning',
-          cooldown_minutes: 30,
-        });
-        alert('Rule created successfully!');
+        handleCancelEdit();
+        alert(isNew ? 'Rule created successfully!' : 'Rule updated successfully!');
       } else {
         const data = await res.json();
-        alert(`Failed to create rule: ${data.error}`);
+        alert(`Failed to save rule: ${data.error}`);
       }
     } catch (error) {
-      alert('Failed to create rule');
+      alert('Failed to save rule');
     }
   }
 
   async function handleDeleteRule(id: number, name: string) {
-    if (!confirm(`Delete rule "${name}"?`)) {
-      return;
-    }
+    if (!confirm(`Delete rule "${name}"?`)) return;
 
     try {
       const res = await fetch(`/api/notification-rules/${id}`, { method: 'DELETE' });
@@ -185,28 +224,34 @@ export default function NotificationsPage() {
     }
   }
 
-  function formatCondition(rule: any): string {
-    if (rule.condition_type === 'threshold' && rule.threshold_operator && rule.threshold_value !== null) {
-      const operators: Record<string, string> = { gt: '>', lt: '<', gte: '≥', lte: '≤', eq: '=' };
-      const metricName = rule.metric_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-      return `${metricName} ${operators[rule.threshold_operator] || rule.threshold_operator} ${rule.threshold_value}`;
-    } else if (rule.condition_type === 'status_change') {
-      const from = rule.from_status || 'any';
-      const to = rule.to_status || 'any';
-      return `Status: ${from} → ${to}`;
-    }
-    return rule.condition_type;
-  }
-
-  function formatSource(rule: any): string {
+  function formatSource(rule: Rule): string {
     if (rule.target_type === 'all') {
       return 'All Cards';
+    } else if (rule.target_type === 'card' && rule.card_name) {
+      return rule.card_name;
+    } else if (rule.target_type === 'integration' && rule.integration_name) {
+      return rule.integration_name;
     } else if (rule.target_type === 'card') {
       return `Card #${rule.target_id}`;
     } else if (rule.target_type === 'integration') {
       return `Integration #${rule.target_id}`;
     }
     return 'Unknown';
+  }
+
+  function formatCondition(rule: Rule): string {
+    const metric = metrics.find(m => m.id === rule.metric_definition_id);
+    const metricName = metric?.display_name || 'Unknown Metric';
+
+    if (rule.condition_type === 'threshold' && rule.threshold_operator && rule.threshold_value !== null) {
+      const operators: Record<string, string> = { gt: '>', lt: '<', gte: '≥', lte: '≤', eq: '=' };
+      return `${metricName} ${operators[rule.threshold_operator]} ${rule.threshold_value}${metric?.unit || ''}`;
+    } else if (rule.condition_type === 'status_change') {
+      const from = rule.from_status || 'any';
+      const to = rule.to_status || 'any';
+      return `${metricName}: ${from} → ${to}`;
+    }
+    return metricName;
   }
 
   function getProviderEmoji(provider: string): string {
@@ -218,12 +263,233 @@ export default function NotificationsPage() {
     return emojis[provider] || '🔔';
   }
 
+  function getAvailableMetrics(integrationType?: string | null) {
+    if (!integrationType) return metrics;
+    return metrics.filter((m: any) => !m.integration_type || m.integration_type === integrationType);
+  }
+
+  function renderEditRow(rule: Rule, isNew: boolean) {
+    const selectedIntegration = integrations.find(i => i.id === rule.target_id);
+    const availableMetrics = rule.target_type === 'integration'
+      ? getAvailableMetrics(selectedIntegration?.service_type)
+      : metrics;
+
+    return (
+      <div className={styles.tableRow} key={isNew ? 'new' : rule.id}>
+        {/* Rule Name */}
+        <div>
+          <input
+            type="text"
+            className={styles.inlineInput}
+            value={rule.name}
+            onChange={(e) => setEditForm({ ...rule, name: e.target.value })}
+            placeholder="Rule name..."
+            autoFocus
+          />
+        </div>
+
+        {/* Source */}
+        <div>
+          <select
+            className={styles.inlineSelect}
+            value={rule.target_type}
+            onChange={(e) => {
+              const newType = e.target.value as 'all' | 'card' | 'integration';
+              setEditForm({ ...rule, target_type: newType, target_id: newType === 'all' ? null : rule.target_id });
+            }}
+          >
+            <option value="all">All Cards</option>
+            <option value="integration">Integration</option>
+            <option value="card">Card</option>
+          </select>
+
+          {rule.target_type === 'integration' && (
+            <select
+              className={styles.inlineSelect}
+              value={rule.target_id || ''}
+              onChange={(e) => {
+                const newTargetId = parseInt(e.target.value);
+                setEditForm({ ...rule, target_id: newTargetId, metric_definition_id: null });
+              }}
+            >
+              <option value="">Select integration...</option>
+              {integrations.map(i => (
+                <option key={i.id} value={i.id}>{i.service_name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Metric & Condition */}
+        <div>
+          <select
+            className={styles.inlineSelect}
+            value={rule.metric_definition_id || ''}
+            onChange={(e) => {
+              const metricId = parseInt(e.target.value);
+              const metric = metrics.find((m: any) => m.id === metricId);
+              setEditForm({
+                ...rule,
+                metric_definition_id: metricId,
+                condition_type: metric?.condition_type || 'threshold'
+              });
+            }}
+          >
+            <option value="">Select metric...</option>
+            {availableMetrics.map((m: any) => (
+              <option key={m.id} value={m.id}>{m.display_name}</option>
+            ))}
+          </select>
+
+          {rule.condition_type === 'threshold' && (
+            <div className={styles.inlineFlex}>
+              <select
+                className={styles.inlineSelectSmall}
+                value={rule.threshold_operator || ''}
+                onChange={(e) => setEditForm({ ...rule, threshold_operator: e.target.value as any })}
+              >
+                <option value="gt">&gt;</option>
+                <option value="gte">≥</option>
+                <option value="lt">&lt;</option>
+                <option value="lte">≤</option>
+                <option value="eq">=</option>
+              </select>
+              <input
+                type="number"
+                className={styles.inlineInputSmall}
+                value={rule.threshold_value || ''}
+                onChange={(e) => setEditForm({ ...rule, threshold_value: parseFloat(e.target.value) })}
+                placeholder="Value"
+              />
+            </div>
+          )}
+
+          {rule.condition_type === 'status_change' && (
+            <div className={styles.inlineFlex}>
+              <input
+                type="text"
+                className={styles.inlineInputSmall}
+                value={rule.from_status || ''}
+                onChange={(e) => setEditForm({ ...rule, from_status: e.target.value })}
+                placeholder="From"
+              />
+              <span>→</span>
+              <input
+                type="text"
+                className={styles.inlineInputSmall}
+                value={rule.to_status || ''}
+                onChange={(e) => setEditForm({ ...rule, to_status: e.target.value })}
+                placeholder="To"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Webhook */}
+        <div>
+          <select
+            className={styles.inlineSelect}
+            value={rule.webhook_id || ''}
+            onChange={(e) => setEditForm({ ...rule, webhook_id: parseInt(e.target.value) })}
+          >
+            <option value="">Select webhook...</option>
+            {webhooks.map(w => (
+              <option key={w.id} value={w.id}>
+                {getProviderEmoji(w.provider_type)} {w.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Template */}
+        <div>
+          <select
+            className={styles.inlineSelect}
+            value={rule.template_id || ''}
+            onChange={(e) => setEditForm({ ...rule, template_id: e.target.value ? parseInt(e.target.value) : null })}
+          >
+            <option value="">Default</option>
+            {templates.map((t: any) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className={styles.inlineCheckbox}>
+            <input
+              type="checkbox"
+              checked={rule.is_active}
+              onChange={(e) => setEditForm({ ...rule, is_active: e.target.checked })}
+            />
+            <span>Active</span>
+          </label>
+        </div>
+
+        {/* Actions */}
+        <div className={styles.inlineActions}>
+          <button className={styles.btnSave} onClick={handleSaveRule}>
+            Save
+          </button>
+          <button className={styles.btnCancel} onClick={handleCancelEdit}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRuleRow(rule: Rule) {
+    if (editingId === rule.id) {
+      return renderEditRow(rule, false);
+    }
+
+    return (
+      <div key={rule.id} className={styles.tableRow}>
+        <div><strong>{rule.name}</strong></div>
+        <div>{formatSource(rule)}</div>
+        <div>{formatCondition(rule)}</div>
+        <div>
+          {getProviderEmoji(rule.webhook_provider_type || '')} {rule.webhook_name}
+        </div>
+        <div>
+          {templates.find((t: any) => t.id === rule.template_id)?.name || 'Default'}
+        </div>
+        <div>
+          <span className={rule.is_active ? styles.statusActive : styles.statusInactive}>
+            {rule.is_active ? '● Active' : '○ Inactive'}
+          </span>
+        </div>
+        <div className={styles.inlineActions}>
+          <button className={styles.btnSmall} onClick={() => handleEditRule(rule)}>
+            Edit
+          </button>
+          <button className={styles.btnSmall} onClick={() => handleTestRule(rule.id!)}>
+            Test
+          </button>
+          <button className={styles.btnSmallDanger} onClick={() => handleDeleteRule(rule.id!, rule.name)}>
+            Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.loading}>Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Notifications</h1>
         <p className={styles.subtitle}>
-          Configure webhook-based alerts and maintenance mode
+          Configure notification rules, templates, and maintenance mode
         </p>
       </div>
 
@@ -234,6 +500,12 @@ export default function NotificationsPage() {
           onClick={() => setActiveTab('rules')}
         >
           Rules ({rules.length})
+        </button>
+        <button
+          className={`${styles.tab} ${activeTab === 'templates' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('templates')}
+        >
+          Templates ({templates.length})
         </button>
         <button
           className={`${styles.tab} ${activeTab === 'maintenance' ? styles.tabActive : ''}`}
@@ -252,15 +524,12 @@ export default function NotificationsPage() {
               <h2>Notification Rules</h2>
               <button
                 className={styles.btnPrimary}
-                onClick={() => setShowRuleModal(true)}
-                disabled={webhooks.length === 0}
+                onClick={handleAddRule}
+                disabled={webhooks.length === 0 || editingId !== null}
               >
                 Add Rule
               </button>
             </div>
-            <p className={styles.hint}>
-              Rules define what to notify about. Each rule targets a webhook and specifies conditions.
-            </p>
 
             {webhooks.length === 0 && (
               <div className={styles.hint} style={{ marginTop: '16px', color: '#F59E0B' }}>
@@ -268,7 +537,7 @@ export default function NotificationsPage() {
               </div>
             )}
 
-            {rules.length === 0 ? (
+            {rules.length === 0 && editingId !== 'new' ? (
               <div className={styles.emptyState}>
                 <p>No notification rules configured.</p>
                 <p className={styles.hint}>
@@ -282,42 +551,29 @@ export default function NotificationsPage() {
                   <div>SOURCE</div>
                   <div>CONDITION</div>
                   <div>WEBHOOK</div>
+                  <div>TEMPLATE</div>
                   <div>STATUS</div>
                   <div>ACTIONS</div>
                 </div>
-                {rules.map(rule => (
-                  <div key={rule.id} className={styles.tableRow}>
-                    <div>
-                      <strong>{rule.name}</strong>
-                    </div>
-                    <div>{formatSource(rule)}</div>
-                    <div>{formatCondition(rule)}</div>
-                    <div>
-                      {getProviderEmoji(rule.webhook_provider_type)} {rule.webhook_name}
-                    </div>
-                    <div>
-                      <span className={rule.is_active ? styles.statusActive : styles.statusInactive}>
-                        {rule.is_active ? '● Active' : '○ Inactive'}
-                      </span>
-                    </div>
-                    <div className={styles.col5}>
-                      <button
-                        className={styles.btnSmall}
-                        onClick={() => handleTestRule(rule.id)}
-                      >
-                        Test
-                      </button>
-                      <button
-                        className={styles.btnSmallDanger}
-                        onClick={() => handleDeleteRule(rule.id, rule.name)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                {editingId === 'new' && editForm && renderEditRow(editForm, true)}
+                {rules.map(rule => renderRuleRow(rule))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TEMPLATES TAB */}
+        {activeTab === 'templates' && (
+          <div className={styles.tabContent}>
+            <div className={styles.sectionHeader}>
+              <h2>Notification Templates</h2>
+            </div>
+            <p className={styles.hint}>
+              Templates allow you to customize notification messages with variables.
+            </p>
+            <div className={styles.comingSoon}>
+              Template management UI coming soon. For now, templates are managed via API.
+            </div>
           </div>
         )}
 
@@ -358,171 +614,6 @@ export default function NotificationsPage() {
           </div>
         )}
       </div>
-
-      {/* RULE MODAL */}
-      {showRuleModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowRuleModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>Add Notification Rule</h2>
-              <button className={styles.modalClose} onClick={() => setShowRuleModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleCreateRule}>
-              <div className={styles.formGroup}>
-                <label>Rule Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Server Offline Alert"
-                  value={ruleForm.name}
-                  onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Webhook</label>
-                <select
-                  value={ruleForm.webhook_id || ''}
-                  onChange={(e) => setRuleForm({ ...ruleForm, webhook_id: parseInt(e.target.value) })}
-                  required
-                >
-                  <option value="">Select webhook...</option>
-                  {webhooks.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {getProviderEmoji(w.provider_type)} {w.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Metric Type</label>
-                <select
-                  value={ruleForm.metric_type}
-                  onChange={(e) => setRuleForm({ ...ruleForm, metric_type: e.target.value })}
-                  required
-                >
-                  <optgroup label="Server Status">
-                    <option value="server_offline">Server Offline</option>
-                    <option value="server_online">Server Online</option>
-                    <option value="server_warning">Server Warning</option>
-                  </optgroup>
-                  <optgroup label="System Metrics">
-                    <option value="cpu_temperature">CPU Temperature</option>
-                    <option value="cpu_usage">CPU Usage</option>
-                    <option value="memory_usage">Memory Usage</option>
-                    <option value="disk_usage">Disk Usage</option>
-                    <option value="drive_temperature">Drive Temperature</option>
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Condition Type</label>
-                <select
-                  value={ruleForm.condition_type}
-                  onChange={(e) => setRuleForm({ ...ruleForm, condition_type: e.target.value as any })}
-                  required
-                >
-                  <option value="status_change">Status Change</option>
-                  <option value="threshold">Threshold</option>
-                </select>
-              </div>
-
-              {ruleForm.condition_type === 'threshold' && (
-                <>
-                  <div className={styles.formGroup}>
-                    <label>Operator</label>
-                    <select
-                      value={ruleForm.threshold_operator || ''}
-                      onChange={(e) => setRuleForm({ ...ruleForm, threshold_operator: e.target.value as any })}
-                      required
-                    >
-                      <option value="">Select operator...</option>
-                      <option value="gt">Greater than (&gt;)</option>
-                      <option value="gte">Greater than or equal (≥)</option>
-                      <option value="lt">Less than (&lt;)</option>
-                      <option value="lte">Less than or equal (≤)</option>
-                      <option value="eq">Equal (=)</option>
-                    </select>
-                  </div>
-
-                  <div className={styles.formGroup}>
-                    <label>Threshold Value</label>
-                    <input
-                      type="number"
-                      placeholder="e.g., 80"
-                      value={ruleForm.threshold_value || ''}
-                      onChange={(e) => setRuleForm({ ...ruleForm, threshold_value: parseFloat(e.target.value) })}
-                      required
-                    />
-                  </div>
-                </>
-              )}
-
-              {ruleForm.condition_type === 'status_change' && (
-                <>
-                  <div className={styles.formGroup}>
-                    <label>From Status</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., online"
-                      value={ruleForm.from_status || ''}
-                      onChange={(e) => setRuleForm({ ...ruleForm, from_status: e.target.value })}
-                    />
-                  </div>
-
-                  <div className={styles.formGroup}>
-                    <label>To Status</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., offline"
-                      value={ruleForm.to_status || ''}
-                      onChange={(e) => setRuleForm({ ...ruleForm, to_status: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className={styles.formGroup}>
-                <label>Severity</label>
-                <select
-                  value={ruleForm.severity}
-                  onChange={(e) => setRuleForm({ ...ruleForm, severity: e.target.value as any })}
-                  required
-                >
-                  <option value="info">Info</option>
-                  <option value="warning">Warning</option>
-                  <option value="critical">Critical</option>
-                </select>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label>Cooldown (minutes)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={ruleForm.cooldown_minutes}
-                  onChange={(e) => setRuleForm({ ...ruleForm, cooldown_minutes: parseInt(e.target.value) })}
-                  required
-                />
-                <div className={styles.hint}>
-                  Time between repeat notifications for the same condition
-                </div>
-              </div>
-
-              <div className={styles.modalActions}>
-                <button type="button" className={styles.btnSecondary} onClick={() => setShowRuleModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className={styles.btnPrimary}>
-                  Create Rule
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

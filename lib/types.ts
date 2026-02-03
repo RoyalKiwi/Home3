@@ -254,6 +254,11 @@ export interface NotificationRule {
   cooldown_minutes: number;
   severity: Severity;
 
+  // Phase 4: Templates and Aggregation
+  template_id: number | null;                // FK to notification_templates
+  aggregation_enabled: boolean;              // Whether to batch similar alerts
+  aggregation_window_ms: number | null;      // Time window for aggregation (default 60000ms)
+
   created_at: string;
   updated_at: string;
 }
@@ -283,7 +288,8 @@ export interface UpdateWebhookRequest {
 export interface CreateNotificationRuleRequest {
   webhook_id: number;
   name: string;
-  metric_type: MetricType;
+  metric_type: MetricType;                   // Legacy support
+  metric_definition_id?: number;             // New: dynamic metrics
   condition_type: ConditionType;
 
   // Threshold fields (required if condition_type = 'threshold')
@@ -302,12 +308,18 @@ export interface CreateNotificationRuleRequest {
   is_active?: boolean;
   cooldown_minutes?: number;
   severity?: Severity;
+
+  // Templates and Aggregation (Phase 4)
+  template_id?: number;
+  aggregation_enabled?: boolean;
+  aggregation_window_ms?: number;
 }
 
 export interface UpdateNotificationRuleRequest {
   webhook_id?: number;
   name?: string;
   metric_type?: MetricType;
+  metric_definition_id?: number | null;
   condition_type?: ConditionType;
   threshold_value?: number | null;
   threshold_operator?: ThresholdOperator | null;
@@ -318,6 +330,9 @@ export interface UpdateNotificationRuleRequest {
   is_active?: boolean;
   cooldown_minutes?: number;
   severity?: Severity;
+  template_id?: number | null;
+  aggregation_enabled?: boolean;
+  aggregation_window_ms?: number | null;
 }
 
 // Notification payload (sent to webhook)
@@ -349,6 +364,37 @@ export interface MetricMetadata {
   operators?: ThresholdOperator[];
   unit?: string;
   description: string;
+}
+
+// =============================================================================
+// NOTIFICATION TEMPLATES (Phase 4B)
+// =============================================================================
+
+export interface NotificationTemplate {
+  id: number;
+  name: string;
+  title_template: string;                    // e.g., "{{severity}} Alert: {{metricName}}"
+  message_template: string;                  // e.g., "{{cardName}} - {{metricDisplayName}} {{threshold}}"
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNotificationTemplateRequest {
+  name: string;
+  title_template: string;
+  message_template: string;
+  is_default?: boolean;
+  is_active?: boolean;
+}
+
+export interface UpdateNotificationTemplateRequest {
+  name?: string;
+  title_template?: string;
+  message_template?: string;
+  is_default?: boolean;
+  is_active?: boolean;
 }
 
 // =============================================================================

@@ -1,0 +1,240 @@
+.section {
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.sectionHeader h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: #FFFFFF;
+}
+
+.hint {
+  font-size: 0.875rem;
+  color: #94A3B8;
+  margin-bottom: 1.5rem;
+}
+
+.loading,
+.error {
+  padding: 2rem;
+  text-align: center;
+  color: #94A3B8;
+}
+
+.error {
+  color: #EF4444;
+}
+
+.toggleBtn {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #94A3B8;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.toggleBtnActive {
+  background: #22C55E;
+  color: #FFFFFF;
+}
+
+.toggleBtn:hover {
+  transform: scale(1.05);
+}
+
+.configGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.configCard {
+  background: rgba(22, 27, 34, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.cardLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+
+.urlBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.urlText {
+  flex: 1;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.813rem;
+  color: #A5B4FC;
+  word-break: break-all;
+}
+
+.copyBtn {
+  padding: 0.375rem 0.75rem;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s;
+  color: #FFFFFF;
+}
+
+.copyBtn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  transform: scale(1.1);
+}
+
+.cardHint {
+  font-size: 0.813rem;
+  color: #64748B;
+  line-height: 1.4;
+}
+
+.cardHint code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: #A5B4FC;
+}
+
+.noKey {
+  padding: 1rem;
+  text-align: center;
+  color: #94A3B8;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.btnGenerate {
+  width: 100%;
+  padding: 0.625rem;
+  margin-top: 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnGenerate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.statCard {
+  background: rgba(22, 27, 34, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.statValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #3B82F6;
+  margin-bottom: 0.5rem;
+}
+
+.statLabel {
+  font-size: 0.813rem;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.instructions {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.instructionsHeader {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-bottom: 1rem;
+}
+
+.instructionsList {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #E2E8F0;
+  line-height: 1.8;
+}
+
+.instructionsList li {
+  margin-bottom: 0.5rem;
+}
+
+.instructionsList strong {
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.instructionsList code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 0.813rem;
+  color: #A5B4FC;
+}
+
+@media (max-width: 768px) {
+  .configGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}

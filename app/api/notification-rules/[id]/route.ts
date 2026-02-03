@@ -99,6 +99,26 @@ export async function PATCH(
       values.push(body.severity);
     }
 
+    if (body.metric_definition_id !== undefined) {
+      updates.push('metric_definition_id = ?');
+      values.push(body.metric_definition_id);
+    }
+
+    if (body.template_id !== undefined) {
+      updates.push('template_id = ?');
+      values.push(body.template_id);
+    }
+
+    if (body.aggregation_enabled !== undefined) {
+      updates.push('aggregation_enabled = ?');
+      values.push(body.aggregation_enabled ? 1 : 0);
+    }
+
+    if (body.aggregation_window_ms !== undefined) {
+      updates.push('aggregation_window_ms = ?');
+      values.push(body.aggregation_window_ms);
+    }
+
     if (updates.length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }

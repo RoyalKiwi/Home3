@@ -18,9 +18,13 @@ export async function GET(request: NextRequest) {
         `SELECT
           nr.*,
           wc.name as webhook_name,
-          wc.provider_type as webhook_provider_type
+          wc.provider_type as webhook_provider_type,
+          i.service_name as integration_name,
+          c.name as card_name
         FROM notification_rules nr
         JOIN webhook_configs wc ON nr.webhook_id = wc.id
+        LEFT JOIN integrations i ON nr.target_type = 'integration' AND nr.target_id = i.id
+        LEFT JOIN cards c ON nr.target_type = 'card' AND nr.target_id = c.id
         ORDER BY nr.created_at DESC`
       )
       .all() as NotificationRuleWithWebhook[];
@@ -51,9 +55,17 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as CreateNotificationRuleRequest;
 
     // Validate required fields
-    if (!body.webhook_id || !body.name || !body.metric_type || !body.condition_type || !body.target_type) {
+    if (!body.webhook_id || !body.name || !body.condition_type || !body.target_type) {
       return NextResponse.json(
-        { error: 'Missing required fields: webhook_id, name, metric_type, condition_type, target_type' },
+        { error: 'Missing required fields: webhook_id, name, condition_type, target_type' },
+        { status: 400 }
+      );
+    }
+
+    // Either metric_type (legacy) or metric_definition_id (new) must be provided
+    if (!body.metric_type && !body.metric_definition_id) {
+      return NextResponse.json(
+        { error: 'Either metric_type or metric_definition_id must be provided' },
         { status: 400 }
       );
     }
@@ -97,17 +109,19 @@ export async function POST(request: NextRequest) {
     const result = db
       .prepare(
         `INSERT INTO notification_rules (
-          webhook_id, name, metric_type, condition_type,
+          webhook_id, name, metric_type, metric_definition_id, condition_type,
           threshold_value, threshold_operator,
           from_status, to_status,
           target_type, target_id,
-          is_active, cooldown_minutes, severity
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          is_active, cooldown_minutes, severity,
+          template_id, aggregation_enabled, aggregation_window_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         body.webhook_id,
         body.name,
-        body.metric_type,
+        body.metric_type ?? null,
+        body.metric_definition_id ?? null,
         body.condition_type,
         body.threshold_value ?? null,
         body.threshold_operator ?? null,
@@ -117,7 +131,10 @@ export async function POST(request: NextRequest) {
         body.target_id ?? null,
         (body.is_active ?? true) ? 1 : 0,
         body.cooldown_minutes ?? 30,
-        body.severity ?? 'warning'
+        body.severity ?? 'warning',
+        body.template_id ?? null,
+        (body.aggregation_enabled ?? false) ? 1 : 0,
+        body.aggregation_window_ms ?? null
       );
 
     const rule = db
