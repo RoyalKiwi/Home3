@@ -44,7 +44,7 @@ export async function PATCH(
     }
 
     // Update the template
-    db.prepare(\`
+    db.prepare(`
       UPDATE notification_templates
       SET
         name = ?,
@@ -54,7 +54,7 @@ export async function PATCH(
         is_active = ?,
         updated_at = datetime('now')
       WHERE id = ?
-    \`).run(
+    `).run(
       body.name,
       body.title_template,
       body.message_template,
@@ -130,7 +130,7 @@ export async function DELETE(
     if (usage.count > 0) {
       return NextResponse.json(
         {
-          error: \`Template "\${template.name}" is used by \${usage.count} notification rule(s). Remove it from rules before deleting.\`
+          error: `Template "${template.name}" is used by ${usage.count} notification rule(s). Remove it from rules before deleting.`
         },
         { status: 400 }
       );
@@ -141,7 +141,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: \`Template "\${template.name}" deleted successfully\`
+      message: `Template "${template.name}" deleted successfully`
     });
   } catch (error) {
     console.error('Error deleting notification template:', error);
