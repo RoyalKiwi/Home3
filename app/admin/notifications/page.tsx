@@ -259,7 +259,7 @@ export default function NotificationsPage() {
 
   function formatCondition(rule: Rule): string {
     const metric = metrics.find(m => m.id === rule.metric_definition_id);
-    const metricName = metric?.display_name || 'Unknown Metric';
+    const metricName = metric?.displayName || 'Unknown Metric';
 
     if (rule.condition_type === 'threshold' && rule.threshold_operator && rule.threshold_value !== null) {
       const operators: Record<string, string> = { gt: '>', lt: '<', gte: '≥', lte: '≤', eq: '=' };
@@ -283,7 +283,7 @@ export default function NotificationsPage() {
 
   function getAvailableMetrics(integrationType?: string | null) {
     if (!integrationType) return metrics;
-    return metrics.filter((m: any) => !m.integration_type || m.integration_type === integrationType);
+    return metrics.filter((m: any) => !m.integrationType || m.integrationType === integrationType);
   }
 
   function renderEditRow(rule: Rule, isNew: boolean) {
@@ -349,13 +349,13 @@ export default function NotificationsPage() {
               setEditForm({
                 ...rule,
                 metric_definition_id: metricId,
-                condition_type: metric?.condition_type || 'threshold'
+                condition_type: metric?.conditionType || 'threshold'
               });
             }}
           >
             <option value="">Select metric...</option>
             {availableMetrics.map((m: any) => (
-              <option key={m.id} value={m.id}>{m.display_name}</option>
+              <option key={m.id} value={m.id}>{m.displayName}</option>
             ))}
           </select>
 
