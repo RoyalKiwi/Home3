@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { notificationService } from '@/lib/services/notifications';
 import { getDb } from '@/lib/db';
-import { MetricRegistry } from '@/lib/services/metricRegistry';
 import type { Severity, MetricType } from '@/lib/types';
 
 /**
@@ -24,12 +23,13 @@ export async function POST(
 
     const db = getDb();
 
-    // Get rule details
+    // Get rule details with integration info
     const rule = db
       .prepare(
-        `SELECT nr.*, wc.name as webhook_name
+        `SELECT nr.*, wc.name as webhook_name, i.service_name as integration_name
         FROM notification_rules nr
         JOIN webhook_configs wc ON nr.webhook_id = wc.id
+        JOIN integrations i ON nr.integration_id = i.id
         WHERE nr.id = ?`
       )
       .get(ruleId) as any;
@@ -38,28 +38,20 @@ export async function POST(
       return NextResponse.json({ error: 'Notification rule not found' }, { status: 404 });
     }
 
-    // Get metric key for alertType (support both legacy and new system)
-    let metricKey = rule.metric_type;
-
-    // If using new metric_definition_id, look up the metric key
-    if (!metricKey && rule.metric_definition_id) {
-      const metricDef = MetricRegistry.getMetricById(rule.metric_definition_id);
-      metricKey = metricDef?.metric_key || 'unknown_metric';
-    }
-
     // Send test notification (bypass flood control)
     await notificationService.sendAlert(
       ruleId,
       {
-        alertType: metricKey as MetricType,
+        alertType: rule.metric_key as MetricType,
         title: `TEST: ${rule.name}`,
-        message: `This is a test notification for rule "${rule.name}". If you see this, the rule is configured correctly.`,
+        message: `This is a test notification for rule "${rule.name}". If you see this, the rule is configured correctly.\n\nIntegration: ${rule.integration_name}\nMetric: ${rule.metric_key}\nThreshold: ${rule.operator} ${rule.threshold}`,
         severity: rule.severity as Severity,
         metadata: {
           test: true,
           ruleId,
           ruleName: rule.name,
-          metricDefinitionId: rule.metric_definition_id,
+          integrationName: rule.integration_name,
+          metricKey: rule.metric_key,
         },
       },
       true // Bypass flood control

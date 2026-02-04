@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { MetricRegistry } from '@/lib/services/metricRegistry';
 
 /**
  * POST /api/notifications/init
@@ -18,15 +17,6 @@ export async function POST(request: NextRequest) {
       actions: [],
       errors: [],
     };
-
-    // Check and sync metric definitions
-    try {
-      MetricRegistry.syncDriverCapabilities();
-      const metrics = MetricRegistry.getAllMetrics();
-      results.actions.push(`Synced ${metrics.length} metric definitions`);
-    } catch (error) {
-      results.errors.push(`Failed to sync metrics: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
 
     // Check templates exist
     try {
@@ -145,7 +135,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Check tables exist
-    const tables = ['webhook_configs', 'notification_rules', 'metric_definitions', 'notification_templates', 'notification_history'];
+    const tables = ['webhook_configs', 'notification_rules', 'notification_templates', 'notification_history'];
 
     for (const table of tables) {
       try {
@@ -167,19 +157,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Check metrics
+    // Check notification rules
     try {
-      const metrics = MetricRegistry.getAllMetrics();
+      const rulesCount = db.prepare('SELECT COUNT(*) as count FROM notification_rules').get() as { count: number };
       status.checks.push({
-        name: 'Metric Definitions',
-        status: metrics.length > 0 ? 'ok' : 'empty',
-        healthy: metrics.length > 0,
-        count: metrics.length,
+        name: 'Notification Rules',
+        status: 'ok',
+        healthy: true,
+        count: rulesCount.count,
       });
-      if (metrics.length === 0) status.healthy = false;
     } catch (error) {
       status.checks.push({
-        name: 'Metric Definitions',
+        name: 'Notification Rules',
         status: 'error',
         healthy: false,
         error: error instanceof Error ? error.message : 'Unknown error',
