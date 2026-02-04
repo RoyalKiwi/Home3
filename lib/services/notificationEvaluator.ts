@@ -197,7 +197,7 @@ class NotificationEvaluator {
       // Build notification payload
       const operatorDisplay = this.getOperatorDisplay(rule.operator);
       const notificationPayload: NotificationPayload = {
-        alertType: 'threshold',
+        alertType: rule.metric_key as any, // Use metric key as alert type (cpu, memory, etc.)
         title: `${rule.name}`,
         message: `${payload.integration_name}: ${rule.metric_key} is ${metricValue} (${operatorDisplay} ${rule.threshold})`,
         severity: rule.severity,
