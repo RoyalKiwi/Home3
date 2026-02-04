@@ -526,6 +526,20 @@ export default function NotificationsPage() {
           </select>
         </div>
 
+        {/* Cooldown */}
+        <div className={styles.cooldownField}>
+          <input
+            type="number"
+            className={styles.inlineInputSmall}
+            value={rule.cooldown_minutes}
+            onChange={(e) => setEditForm({ ...rule, cooldown_minutes: parseInt(e.target.value) || 30 })}
+            min="1"
+            max="1440"
+            placeholder="30"
+          />
+          <span className={styles.cooldownLabel}>min cooldown</span>
+        </div>
+
         {/* Status */}
         <div>
           <label className={styles.inlineCheckbox}>
@@ -586,6 +600,11 @@ export default function NotificationsPage() {
         {/* Template */}
         <div>
           {templates.find((t: any) => t.id === rule.template_id)?.name || 'Default'}
+        </div>
+
+        {/* Cooldown */}
+        <div className={styles.cooldownDisplay}>
+          {rule.cooldown_minutes}m
         </div>
 
         {/* Status */}
@@ -700,6 +719,7 @@ export default function NotificationsPage() {
                   <div>WEBHOOK</div>
                   <div>SEVERITY</div>
                   <div>TEMPLATE</div>
+                  <div>COOLDOWN</div>
                   <div>STATUS</div>
                   <div>ACTIONS</div>
                 </div>

@@ -656,6 +656,27 @@
   color: #FFFFFF;
 }
 
+.cooldownField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cooldownField input {
+  width: 60px;
+}
+
+.cooldownLabel {
+  color: #94A3B8;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cooldownDisplay {
+  color: #94A3B8;
+  font-size: 13px;
+}
+
 .inlineActions {
   display: flex;
   gap: 6px;
