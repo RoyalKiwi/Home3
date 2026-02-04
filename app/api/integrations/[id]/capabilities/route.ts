@@ -37,8 +37,8 @@ export async function GET(
     const credentials = JSON.parse(decrypt(integration.credentials)) as IntegrationCredentials;
     const driver = createDriver(integrationId, integration.service_type, credentials);
 
-    // Get capabilities from driver
-    const capabilities = driver.getCapabilities();
+    // Get capabilities from driver (now async - dynamically queries API)
+    const capabilities = await driver.getCapabilities();
 
     return NextResponse.json({
       success: true,
