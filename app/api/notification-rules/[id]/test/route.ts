@@ -38,6 +38,27 @@ export async function POST(
       return NextResponse.json({ error: 'Notification rule not found' }, { status: 404 });
     }
 
+    // Get capability metadata for proper unit display
+    let unit = '';
+    let metricDisplayName = rule.metric_key;
+    try {
+      const { createDriver } = await import('@/drivers');
+      const { decrypt } = await import('@/lib/crypto');
+      const integration = db.prepare('SELECT * FROM integrations WHERE id = ?').get(rule.integration_id) as any;
+      if (integration) {
+        const credentials = JSON.parse(decrypt(integration.credentials));
+        const driver = createDriver(rule.integration_id, integration.service_type, credentials);
+        const capabilities = await driver.getCapabilities();
+        const capability = capabilities.find((cap: any) => cap.key === rule.metric_key);
+        if (capability) {
+          metricDisplayName = capability.displayName;
+          unit = capability.unit;
+        }
+      }
+    } catch (error) {
+      console.warn('[Test] Failed to get capability metadata:', error);
+    }
+
     // Send test notification (bypass flood control)
     await notificationService.sendAlert(
       ruleId,
@@ -51,7 +72,13 @@ export async function POST(
           ruleId,
           ruleName: rule.name,
           integrationName: rule.integration_name,
-          metricKey: rule.metric_key,
+          integrationType: rule.integration_type,
+          metricName: rule.metric_key,
+          metricDisplayName: metricDisplayName,
+          metricValue: rule.threshold * 1.25, // Sample value 25% above threshold
+          threshold: rule.threshold,
+          unit: unit,
+          operator: rule.operator,
         },
       },
       true // Bypass flood control
