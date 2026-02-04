@@ -451,13 +451,35 @@ export default function NotificationsPage() {
               <option value="lte">≤</option>
               <option value="eq">=</option>
             </select>
-            <input
-              type="number"
-              className={styles.inlineInputSmall}
-              value={rule.threshold || ''}
-              onChange={(e) => setEditForm({ ...rule, threshold: parseFloat(e.target.value) || null })}
-              placeholder="Value"
-            />
+            {/* Show dropdown for status metrics, number input for others */}
+            {(() => {
+              const selectedCapability = availableMetrics.find(m => m.key === rule.metric_key);
+              const isStatusMetric = selectedCapability?.unit === 'status';
+
+              if (isStatusMetric) {
+                return (
+                  <select
+                    className={styles.inlineInputSmall}
+                    value={rule.threshold ?? ''}
+                    onChange={(e) => setEditForm({ ...rule, threshold: parseFloat(e.target.value) || null })}
+                  >
+                    <option value="">Select status...</option>
+                    <option value="0">Stopped / Offline / Down</option>
+                    <option value="1">Running / Online / Up</option>
+                  </select>
+                );
+              }
+
+              return (
+                <input
+                  type="number"
+                  className={styles.inlineInputSmall}
+                  value={rule.threshold || ''}
+                  onChange={(e) => setEditForm({ ...rule, threshold: parseFloat(e.target.value) || null })}
+                  placeholder="Value"
+                />
+              );
+            })()}
           </div>
         </div>
 

@@ -194,19 +194,27 @@ class NotificationEvaluator {
    */
   private async sendNotification(rule: any, payload: MetricsPayload, metricValue: number) {
     try {
+      // Get capability metadata for this metric (for unit and display name)
+      const capability = await this.getCapabilityMetadata(payload.integration_id, rule.metric_key);
+
       // Build notification payload
       const operatorDisplay = this.getOperatorDisplay(rule.operator);
+      const metricDisplayName = capability?.displayName || rule.metric_key;
+      const unit = capability?.unit || '';
+
       const notificationPayload: NotificationPayload = {
         alertType: rule.metric_key as any, // Use metric key as alert type (cpu, memory, etc.)
         title: `${rule.name}`,
-        message: `${payload.integration_name}: ${rule.metric_key} is ${metricValue} (${operatorDisplay} ${rule.threshold})`,
+        message: `${payload.integration_name}: ${metricDisplayName} is ${metricValue}${unit} (${operatorDisplay} ${rule.threshold}${unit})`,
         severity: rule.severity,
         metadata: {
-          integration_name: payload.integration_name,
-          integration_type: payload.integration_type,
+          integrationName: payload.integration_name,
+          integrationType: payload.integration_type,
           metricName: rule.metric_key,
+          metricDisplayName: metricDisplayName,
           metricValue: metricValue,
           threshold: rule.threshold,
+          unit: unit,
           operator: rule.operator,
         },
       };
@@ -256,6 +264,42 @@ class NotificationEvaluator {
       } catch (dbError) {
         console.error('[NotificationEvaluator] Failed to log error to history:', dbError);
       }
+    }
+  }
+
+  /**
+   * Get capability metadata for a metric
+   */
+  private async getCapabilityMetadata(integrationId: number, metricKey: string): Promise<{ displayName: string; unit: string } | null> {
+    try {
+      const db = getDb();
+
+      // Get integration details
+      const integration = db.prepare('SELECT * FROM integrations WHERE id = ?').get(integrationId) as any;
+      if (!integration) {
+        return null;
+      }
+
+      // Import driver factory and decrypt utility
+      const { createDriver } = await import('./driverFactory');
+      const { decrypt } = await import('../crypto');
+
+      // Parse credentials
+      const credentials = JSON.parse(decrypt(integration.credentials));
+
+      // Create driver
+      const driver = createDriver(integrationId, integration.service_type, credentials);
+
+      // Get capabilities
+      const capabilities = await driver.getCapabilities();
+
+      // Find the matching capability
+      const capability = capabilities.find((cap: any) => cap.key === metricKey);
+
+      return capability ? { displayName: capability.displayName, unit: capability.unit } : null;
+    } catch (error) {
+      console.error(`[NotificationEvaluator] Failed to get capability metadata for ${metricKey}:`, error);
+      return null;
     }
   }
 
