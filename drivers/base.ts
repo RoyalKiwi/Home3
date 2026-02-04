@@ -8,17 +8,12 @@ import type {
   IntegrationTestResult,
   MetricCapability,
   MetricData,
+  CapabilityMetadata,
 } from '@/lib/types';
 
 export abstract class BaseDriver {
   protected credentials: IntegrationCredentials;
   protected integrationId: number;
-
-  /**
-   * Capabilities this driver provides
-   * Subclasses must define which metrics they can fetch
-   */
-  abstract readonly capabilities: MetricCapability[];
 
   /**
    * Human-readable name of the integration type
@@ -37,26 +32,6 @@ export abstract class BaseDriver {
   abstract testConnection(): Promise<IntegrationTestResult>;
 
   /**
-   * Check if this driver supports a specific metric
-   */
-  supportsMetric(metric: MetricCapability): boolean {
-    return this.capabilities.includes(metric);
-  }
-
-  /**
-   * Fetch a specific metric
-   * Subclasses should implement metric-specific methods
-   */
-  async fetchMetric(metric: MetricCapability): Promise<MetricData | null> {
-    if (!this.supportsMetric(metric)) {
-      throw new Error(`Driver ${this.displayName} does not support metric: ${metric}`);
-    }
-
-    // Subclasses override this to route to specific metric methods
-    return null;
-  }
-
-  /**
    * Get integration ID
    */
   getIntegrationId(): number {
@@ -64,9 +39,9 @@ export abstract class BaseDriver {
   }
 
   /**
-   * Get supported capabilities
+   * Get supported capabilities (dynamically discovered from integration API)
+   * Drivers query their APIs to discover all available metrics
+   * @returns Promise resolving to array of capability metadata
    */
-  getCapabilities(): MetricCapability[] {
-    return this.capabilities;
-  }
+  abstract getCapabilities(): Promise<CapabilityMetadata[]>;
 }

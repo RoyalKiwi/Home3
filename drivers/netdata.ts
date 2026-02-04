@@ -9,10 +9,10 @@ import type {
   IntegrationTestResult,
   MetricCapability,
   MetricData,
+  CapabilityMetadata,
 } from '@/lib/types';
 
 export class NetdataDriver extends BaseDriver {
-  readonly capabilities: MetricCapability[] = ['cpu', 'memory', 'disk', 'network'];
   readonly displayName = 'Netdata';
 
   private get config(): NetdataCredentials {
@@ -68,6 +68,86 @@ export class NetdataDriver extends BaseDriver {
         message: error instanceof Error ? error.message : 'Connection failed',
       };
     }
+  }
+
+  /**
+   * Get capabilities dynamically from Netdata API
+   * Queries /api/v1/charts to discover all available metrics
+   */
+  async getCapabilities(): Promise<CapabilityMetadata[]> {
+    const capabilities: CapabilityMetadata[] = [];
+
+    try {
+      // Query Netdata API for all available charts
+      const url = `${this.config.url}/api/v1/charts`;
+      const response = await fetch(url, {
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        console.error('[NetdataDriver] Failed to fetch charts:', response.statusText);
+        return this.getFallbackCapabilities();
+      }
+
+      const data = await response.json();
+
+      // Transform each chart into capability metadata
+      for (const [chartId, chartInfo] of Object.entries(data.charts || {})) {
+        const capability = this.mapNetdataChartToCapability(chartId, chartInfo as any);
+        if (capability) {
+          capabilities.push(capability);
+        }
+      }
+
+      return capabilities.length > 0 ? capabilities : this.getFallbackCapabilities();
+    } catch (error) {
+      console.error('[NetdataDriver] Failed to fetch capabilities:', error);
+      return this.getFallbackCapabilities();
+    }
+  }
+
+  /**
+   * Map Netdata chart ID to capability metadata
+   */
+  private mapNetdataChartToCapability(chartId: string, chartInfo: any): CapabilityMetadata | null {
+    // Map Netdata chart IDs to friendly capability metadata
+    const mappings: Record<string, { target: string; metric: string; displayName: string; unit: string; category: string }> = {
+      'system.cpu': { target: 'cpu', metric: 'usage', displayName: 'CPU Usage', unit: '%', category: 'performance' },
+      'system.ram': { target: 'memory', metric: 'usage', displayName: 'RAM Usage', unit: '%', category: 'performance' },
+      'system.load': { target: 'system', metric: 'load', displayName: 'System Load', unit: 'load', category: 'health' },
+      'sensors.temp': { target: 'cpu', metric: 'temp', displayName: 'CPU Temperature', unit: '°C', category: 'health' },
+      'disk_space._': { target: 'disk', metric: 'usage', displayName: 'Disk Space', unit: '%', category: 'performance' },
+      'disk.io': { target: 'disk', metric: 'io', displayName: 'Disk I/O', unit: 'KB/s', category: 'performance' },
+      'system.net': { target: 'network', metric: 'bandwidth', displayName: 'Network Bandwidth', unit: 'Mbps', category: 'performance' },
+      'net.packets': { target: 'network', metric: 'packets', displayName: 'Network Packets', unit: 'pps', category: 'performance' },
+    };
+
+    const mapping = mappings[chartId];
+    if (!mapping) {
+      return null; // Skip unmapped charts
+    }
+
+    return {
+      key: `${mapping.target}_${mapping.metric}`,
+      target: mapping.target,
+      metric: mapping.metric,
+      displayName: mapping.displayName,
+      description: chartInfo.title || mapping.displayName,
+      unit: mapping.unit,
+      category: mapping.category as 'performance' | 'health' | 'status',
+    };
+  }
+
+  /**
+   * Get fallback capabilities if API query fails
+   */
+  private getFallbackCapabilities(): CapabilityMetadata[] {
+    return [
+      { key: 'cpu_usage', target: 'cpu', metric: 'usage', displayName: 'CPU Usage', description: 'CPU utilization percentage', unit: '%', category: 'performance' },
+      { key: 'memory_usage', target: 'memory', metric: 'usage', displayName: 'RAM Usage', description: 'Memory utilization percentage', unit: '%', category: 'performance' },
+      { key: 'disk_usage', target: 'disk', metric: 'usage', displayName: 'Disk Space', description: 'Disk space usage percentage', unit: '%', category: 'performance' },
+    ];
   }
 
   /**
@@ -179,25 +259,4 @@ export class NetdataDriver extends BaseDriver {
     };
   }
 
-  /**
-   * Route metric requests to appropriate methods
-   */
-  async fetchMetric(metric: MetricCapability): Promise<MetricData | null> {
-    if (!this.supportsMetric(metric)) {
-      throw new Error(`Netdata does not support metric: ${metric}`);
-    }
-
-    switch (metric) {
-      case 'cpu':
-        return this.fetchCPU();
-      case 'memory':
-        return this.fetchMemory();
-      case 'disk':
-        return this.fetchDisk();
-      case 'network':
-        return this.fetchNetwork();
-      default:
-        return null;
-    }
-  }
 }

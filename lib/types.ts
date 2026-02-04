@@ -173,6 +173,20 @@ export type MetricCapability =
   | 'docker'           // Docker container stats
   | 'services';        // Service health monitoring
 
+/**
+ * Capability Metadata - Rich hierarchical structure for dynamic metric discovery
+ * Used by drivers to describe available metrics with full context
+ */
+export interface CapabilityMetadata {
+  key: string;           // Unique identifier for database storage (e.g., 'cpu_usage', 'disk_sda_temp')
+  target: string;        // What is being monitored (e.g., 'cpu', 'disk_sda', 'docker_plex')
+  metric: string;        // Specific measurement type (e.g., 'usage', 'temp', 'status')
+  displayName: string;   // Human-friendly name (e.g., 'CPU Usage', 'Disk sda Temperature')
+  description: string;   // Detailed description for tooltips
+  unit: string;          // Unit of measurement (e.g., '%', '°C', 'MB/s', 'status')
+  category: 'performance' | 'health' | 'status';  // Metric category
+}
+
 export interface MetricData {
   timestamp: string;
   value: number | string | boolean;
