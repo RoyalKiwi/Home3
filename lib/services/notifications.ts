@@ -432,6 +432,10 @@ class NotificationService {
             INSERT INTO notification_history (
               rule_id,
               webhook_id,
+              integration_id,
+              metric_key,
+              metric_value,
+              threshold,
               alert_type,
               title,
               message,
@@ -441,10 +445,14 @@ class NotificationService {
               attempts,
               error_message,
               metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             ruleId,
             rule.webhook_id,
+            rule.integration_id,
+            rule.metric_key,
+            finalPayload.metadata?.metricValue ?? null,
+            rule.threshold,
             finalPayload.alertType,
             finalPayload.title,
             finalPayload.message,
