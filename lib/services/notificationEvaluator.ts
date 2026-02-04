@@ -70,10 +70,11 @@ class NotificationEvaluator {
       // Get all active rules for this integration
       const rules = db
         .prepare(
-          `SELECT nr.*, wc.type as webhook_type, wc.config as webhook_config
+          `SELECT nr.*
            FROM notification_rules nr
            JOIN webhook_configs wc ON nr.webhook_id = wc.id
            WHERE nr.is_active = 1
+             AND wc.is_active = 1
              AND nr.integration_id = ?
            ORDER BY nr.id`
         )
