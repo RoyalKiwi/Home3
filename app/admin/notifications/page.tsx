@@ -7,27 +7,32 @@ type Tab = 'rules' | 'templates' | 'maintenance';
 
 interface Rule {
   id?: number;
-  webhook_id: number | null;
   name: string;
-  metric_definition_id: number | null;
-  condition_type: 'threshold' | 'status_change';
-  threshold_operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq' | null;
-  threshold_value: number | null;
-  from_status: string | null;
-  to_status: string | null;
-  target_type: 'all' | 'card' | 'integration';
-  target_id: number | null;
+
+  // Direct integration targeting
+  integration_id: number | null;
+
+  // Dynamic metric reference
+  metric_key: string;
+
+  // Threshold condition
+  operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold: number | null;
+
+  // Notification settings
+  webhook_id: number | null;
+  template_id: number | null;
   severity: 'info' | 'warning' | 'critical';
   cooldown_minutes: number;
-  template_id: number | null;
-  aggregation_enabled: boolean;
-  aggregation_window_ms: number | null;
+
+  // State
   is_active: boolean;
-  // Joined fields
+
+  // Joined fields from API
   webhook_name?: string;
   webhook_provider_type?: string;
   integration_name?: string;
-  card_name?: string;
+  integration_type?: string;
 }
 
 export default function NotificationsPage() {
@@ -37,6 +42,8 @@ export default function NotificationsPage() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any[]>([]);
+  const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [loadingCapabilities, setLoadingCapabilities] = useState(false);
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -54,7 +61,6 @@ export default function NotificationsPage() {
       loadWebhooks(),
       loadIntegrations(),
       loadTemplates(),
-      loadMetrics(),
       loadMaintenanceMode(),
     ]);
     setLoading(false);
@@ -109,22 +115,25 @@ export default function NotificationsPage() {
     }
   }
 
-  async function loadMetrics() {
+  async function loadCapabilities(integrationId: number) {
     try {
-      const res = await fetch('/api/notification-rules/metrics');
+      setLoadingCapabilities(true);
+      const res = await fetch(`/api/integrations/${integrationId}/capabilities`);
+
       if (!res.ok) {
-        console.error('[Metrics] Failed to load:', res.status, res.statusText);
+        console.error('[Capabilities] Failed to load:', res.status, res.statusText);
+        setCapabilities([]);
         return;
       }
-      const data = await res.json();
-      console.log('[Metrics] Loaded:', data.data?.length || 0, 'metrics');
-      setMetrics(data.data || []);
 
-      if ((data.data || []).length === 0) {
-        console.warn('[Metrics] No metrics found. Check server logs for MetricRegistry sync status.');
-      }
+      const data = await res.json();
+      console.log('[Capabilities] Loaded:', data.data?.capabilities || []);
+      setCapabilities(data.data?.capabilities || []);
     } catch (error) {
-      console.error('[Metrics] Load error:', error);
+      console.error('[Capabilities] Load error:', error);
+      setCapabilities([]);
+    } finally {
+      setLoadingCapabilities(false);
     }
   }
 
@@ -140,23 +149,23 @@ export default function NotificationsPage() {
 
   function handleAddRule() {
     const newRule: Rule = {
-      webhook_id: webhooks[0]?.id || null,
       name: '',
-      metric_definition_id: null,
-      condition_type: 'threshold',
-      threshold_operator: 'gt',
-      threshold_value: null,
-      from_status: null,
-      to_status: null,
-      target_type: 'all',
-      target_id: null,
+      integration_id: integrations[0]?.id || null,
+      metric_key: '',
+      operator: 'gt',
+      threshold: null,
+      webhook_id: webhooks[0]?.id || null,
+      template_id: null,
       severity: 'warning',
       cooldown_minutes: 30,
-      template_id: null,
-      aggregation_enabled: false,
-      aggregation_window_ms: 60000,
       is_active: true,
     };
+
+    // Load capabilities for first integration
+    if (integrations[0]?.id) {
+      loadCapabilities(integrations[0].id);
+    }
+
     setEditForm(newRule);
     setEditingId('new');
   }
@@ -242,34 +251,24 @@ export default function NotificationsPage() {
     }
   }
 
-  function formatSource(rule: Rule): string {
-    if (rule.target_type === 'all') {
-      return 'All Cards';
-    } else if (rule.target_type === 'card' && rule.card_name) {
-      return rule.card_name;
-    } else if (rule.target_type === 'integration' && rule.integration_name) {
-      return rule.integration_name;
-    } else if (rule.target_type === 'card') {
-      return `Card #${rule.target_id}`;
-    } else if (rule.target_type === 'integration') {
-      return `Integration #${rule.target_id}`;
+  function formatIntegration(rule: Rule): string {
+    if (rule.integration_name) {
+      return `${rule.integration_name} (${rule.integration_type || 'unknown'})`;
     }
-    return 'Unknown';
+    return rule.integration_id ? `Integration #${rule.integration_id}` : 'Unknown';
   }
 
   function formatCondition(rule: Rule): string {
-    const metric = metrics.find(m => m.id === rule.metric_definition_id);
-    const metricName = metric?.displayName || 'Unknown Metric';
+    const operators: Record<string, string> = {
+      gt: '>',
+      lt: '<',
+      gte: '≥',
+      lte: '≤',
+      eq: '='
+    };
 
-    if (rule.condition_type === 'threshold' && rule.threshold_operator && rule.threshold_value !== null) {
-      const operators: Record<string, string> = { gt: '>', lt: '<', gte: '≥', lte: '≤', eq: '=' };
-      return `${metricName} ${operators[rule.threshold_operator]} ${rule.threshold_value}${metric?.unit || ''}`;
-    } else if (rule.condition_type === 'status_change') {
-      const from = rule.from_status || 'any';
-      const to = rule.to_status || 'any';
-      return `${metricName}: ${from} → ${to}`;
-    }
-    return metricName;
+    const operatorSymbol = operators[rule.operator] || rule.operator;
+    return `${rule.metric_key} ${operatorSymbol} ${rule.threshold}`;
   }
 
   function getProviderEmoji(provider: string): string {
@@ -281,17 +280,7 @@ export default function NotificationsPage() {
     return emojis[provider] || '🔔';
   }
 
-  function getAvailableMetrics(integrationType?: string | null) {
-    if (!integrationType) return metrics;
-    return metrics.filter((m: any) => !m.integrationType || m.integrationType === integrationType);
-  }
-
   function renderEditRow(rule: Rule, isNew: boolean) {
-    const selectedIntegration = integrations.find(i => i.id === rule.target_id);
-    const availableMetrics = rule.target_type === 'integration'
-      ? getAvailableMetrics(selectedIntegration?.service_type)
-      : metrics;
-
     return (
       <div className={styles.tableRow} key={isNew ? 'new' : rule.id}>
         {/* Rule Name */}
@@ -306,103 +295,76 @@ export default function NotificationsPage() {
           />
         </div>
 
-        {/* Source */}
+        {/* Integration Selector */}
         <div>
           <select
             className={styles.inlineSelect}
-            value={rule.target_type}
+            value={rule.integration_id || ''}
             onChange={(e) => {
-              const newType = e.target.value as 'all' | 'card' | 'integration';
-              setEditForm({ ...rule, target_type: newType, target_id: newType === 'all' ? null : rule.target_id });
-            }}
-          >
-            <option value="all">All Cards</option>
-            <option value="integration">Integration</option>
-            <option value="card">Card</option>
-          </select>
-
-          {rule.target_type === 'integration' && (
-            <select
-              className={styles.inlineSelect}
-              value={rule.target_id || ''}
-              onChange={(e) => {
-                const newTargetId = parseInt(e.target.value);
-                setEditForm({ ...rule, target_id: newTargetId, metric_definition_id: null });
-              }}
-            >
-              <option value="">Select integration...</option>
-              {integrations.map(i => (
-                <option key={i.id} value={i.id}>{i.service_name}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Metric & Condition */}
-        <div>
-          <select
-            className={styles.inlineSelect}
-            value={rule.metric_definition_id || ''}
-            onChange={(e) => {
-              const metricId = parseInt(e.target.value);
-              const metric = metrics.find((m: any) => m.id === metricId);
+              const integrationId = parseInt(e.target.value);
               setEditForm({
                 ...rule,
-                metric_definition_id: metricId,
-                condition_type: metric?.conditionType || 'threshold'
+                integration_id: integrationId,
+                metric_key: '' // Reset metric when integration changes
               });
+
+              // Load capabilities for selected integration
+              if (integrationId) {
+                loadCapabilities(integrationId);
+              } else {
+                setCapabilities([]);
+              }
             }}
           >
-            <option value="">Select metric...</option>
-            {availableMetrics.map((m: any) => (
-              <option key={m.id} value={m.id}>
-                {m.displayName} {m.integrationType ? `(${m.integrationType})` : ''}
+            <option value="">Select integration...</option>
+            {integrations.map(i => (
+              <option key={i.id} value={i.id}>
+                {i.service_name} ({i.service_type})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Metric Key + Condition */}
+        <div>
+          {/* Metric Key Selector */}
+          <select
+            className={styles.inlineSelect}
+            value={rule.metric_key}
+            onChange={(e) => setEditForm({ ...rule, metric_key: e.target.value })}
+            disabled={!rule.integration_id || loadingCapabilities}
+          >
+            <option value="">
+              {loadingCapabilities ? 'Loading metrics...' : 'Select metric...'}
+            </option>
+            {capabilities.map((cap) => (
+              <option key={cap} value={cap}>
+                {cap}
               </option>
             ))}
           </select>
 
-          {rule.condition_type === 'threshold' && (
-            <div className={styles.inlineFlex}>
-              <select
-                className={styles.inlineSelectSmall}
-                value={rule.threshold_operator || ''}
-                onChange={(e) => setEditForm({ ...rule, threshold_operator: e.target.value as any })}
-              >
-                <option value="gt">&gt;</option>
-                <option value="gte">≥</option>
-                <option value="lt">&lt;</option>
-                <option value="lte">≤</option>
-                <option value="eq">=</option>
-              </select>
-              <input
-                type="number"
-                className={styles.inlineInputSmall}
-                value={rule.threshold_value || ''}
-                onChange={(e) => setEditForm({ ...rule, threshold_value: parseFloat(e.target.value) })}
-                placeholder="Value"
-              />
-            </div>
-          )}
-
-          {rule.condition_type === 'status_change' && (
-            <div className={styles.inlineFlex}>
-              <input
-                type="text"
-                className={styles.inlineInputSmall}
-                value={rule.from_status || ''}
-                onChange={(e) => setEditForm({ ...rule, from_status: e.target.value })}
-                placeholder="From"
-              />
-              <span>→</span>
-              <input
-                type="text"
-                className={styles.inlineInputSmall}
-                value={rule.to_status || ''}
-                onChange={(e) => setEditForm({ ...rule, to_status: e.target.value })}
-                placeholder="To"
-              />
-            </div>
-          )}
+          {/* Operator + Threshold */}
+          <div className={styles.inlineFlex}>
+            <select
+              className={styles.inlineSelectSmall}
+              value={rule.operator}
+              onChange={(e) => setEditForm({ ...rule, operator: e.target.value as any })}
+            >
+              <option value="gt">&gt;</option>
+              <option value="gte">≥</option>
+              <option value="lt">&lt;</option>
+              <option value="lte">≤</option>
+              <option value="eq">=</option>
+            </select>
+            <input
+              type="number"
+              className={styles.inlineInputSmall}
+              value={rule.threshold || ''}
+              onChange={(e) => setEditForm({ ...rule, threshold: parseFloat(e.target.value) || null })}
+              placeholder="Value"
+            />
+          </div>
         </div>
 
         {/* Webhook */}
@@ -421,7 +383,20 @@ export default function NotificationsPage() {
           </select>
         </div>
 
-        {/* Template */}
+        {/* Severity */}
+        <div>
+          <select
+            className={styles.inlineSelect}
+            value={rule.severity}
+            onChange={(e) => setEditForm({ ...rule, severity: e.target.value as any })}
+          >
+            <option value="info">ℹ️ Info</option>
+            <option value="warning">⚠️ Warning</option>
+            <option value="critical">🔴 Critical</option>
+          </select>
+        </div>
+
+        {/* Template (Optional) */}
         <div>
           <select
             className={styles.inlineSelect}
@@ -465,24 +440,54 @@ export default function NotificationsPage() {
       return renderEditRow(rule, false);
     }
 
+    const severityEmojis = {
+      info: 'ℹ️',
+      warning: '⚠️',
+      critical: '🔴'
+    };
+
     return (
       <div key={rule.id} className={styles.tableRow}>
+        {/* Rule Name */}
         <div><strong>{rule.name}</strong></div>
-        <div>{formatSource(rule)}</div>
+
+        {/* Integration */}
+        <div>{formatIntegration(rule)}</div>
+
+        {/* Condition */}
         <div>{formatCondition(rule)}</div>
+
+        {/* Webhook */}
         <div>
           {getProviderEmoji(rule.webhook_provider_type || '')} {rule.webhook_name}
         </div>
+
+        {/* Severity */}
+        <div>
+          {severityEmojis[rule.severity]} {rule.severity}
+        </div>
+
+        {/* Template */}
         <div>
           {templates.find((t: any) => t.id === rule.template_id)?.name || 'Default'}
         </div>
+
+        {/* Status */}
         <div>
           <span className={rule.is_active ? styles.statusActive : styles.statusInactive}>
             {rule.is_active ? '● Active' : '○ Inactive'}
           </span>
         </div>
+
+        {/* Actions */}
         <div className={styles.inlineActions}>
-          <button className={styles.btnSmall} onClick={() => handleEditRule(rule)}>
+          <button className={styles.btnSmall} onClick={() => {
+            handleEditRule(rule);
+            // Load capabilities when editing
+            if (rule.integration_id) {
+              loadCapabilities(rule.integration_id);
+            }
+          }}>
             Edit
           </button>
           <button className={styles.btnSmall} onClick={() => handleTestRule(rule.id!)}>
@@ -545,7 +550,7 @@ export default function NotificationsPage() {
               <button
                 className={styles.btnPrimary}
                 onClick={handleAddRule}
-                disabled={webhooks.length === 0 || editingId !== null}
+                disabled={webhooks.length === 0 || integrations.length === 0 || editingId !== null}
               >
                 Add Rule
               </button>
@@ -553,7 +558,13 @@ export default function NotificationsPage() {
 
             {webhooks.length === 0 && (
               <div className={styles.hint} style={{ marginTop: '16px', color: '#F59E0B' }}>
-                You must create at least one webhook before you can create rules. Configure webhooks in API Settings.
+                ⚠️ You must create at least one webhook before you can create rules.
+              </div>
+            )}
+
+            {integrations.length === 0 && webhooks.length > 0 && (
+              <div className={styles.hint} style={{ marginTop: '16px', color: '#F59E0B' }}>
+                ⚠️ You must create at least one integration before you can create rules.
               </div>
             )}
 
@@ -568,9 +579,10 @@ export default function NotificationsPage() {
               <div className={styles.table}>
                 <div className={styles.tableHeader}>
                   <div>RULE NAME</div>
-                  <div>SOURCE</div>
+                  <div>INTEGRATION</div>
                   <div>CONDITION</div>
                   <div>WEBHOOK</div>
+                  <div>SEVERITY</div>
                   <div>TEMPLATE</div>
                   <div>STATUS</div>
                   <div>ACTIONS</div>

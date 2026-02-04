@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import type { NotificationRuleWithWebhook, CreateNotificationRuleRequest } from '@/lib/types';
+import type { NotificationRuleWithDetails, CreateNotificationRuleRequest } from '@/lib/types';
 
 /**
  * GET /api/notification-rules
- * List all notification rules with webhook details (admin-only)
+ * List all notification rules with webhook and integration details (admin-only)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,14 +20,13 @@ export async function GET(request: NextRequest) {
           wc.name as webhook_name,
           wc.provider_type as webhook_provider_type,
           i.service_name as integration_name,
-          c.name as card_name
+          i.service_type as integration_type
         FROM notification_rules nr
         JOIN webhook_configs wc ON nr.webhook_id = wc.id
-        LEFT JOIN integrations i ON nr.target_type = 'integration' AND nr.target_id = i.id
-        LEFT JOIN cards c ON nr.target_type = 'card' AND nr.target_id = c.id
+        JOIN integrations i ON nr.integration_id = i.id
         ORDER BY nr.created_at DESC`
       )
-      .all() as NotificationRuleWithWebhook[];
+      .all() as NotificationRuleWithDetails[];
 
     return NextResponse.json({
       success: true,
@@ -55,44 +54,21 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as CreateNotificationRuleRequest;
 
     // Validate required fields
-    if (!body.webhook_id || !body.name || !body.condition_type || !body.target_type) {
+    if (!body.name || !body.integration_id || !body.metric_key ||
+        !body.operator || body.threshold === undefined || !body.webhook_id) {
       return NextResponse.json(
-        { error: 'Missing required fields: webhook_id, name, condition_type, target_type' },
+        {
+          error: 'Missing required fields: name, integration_id, metric_key, operator, threshold, webhook_id'
+        },
         { status: 400 }
       );
     }
 
-    // Either metric_type (legacy) or metric_definition_id (new) must be provided
-    if (!body.metric_type && !body.metric_definition_id) {
+    // Validate operator
+    const validOperators = ['gt', 'lt', 'gte', 'lte', 'eq'];
+    if (!validOperators.includes(body.operator)) {
       return NextResponse.json(
-        { error: 'Either metric_type or metric_definition_id must be provided' },
-        { status: 400 }
-      );
-    }
-
-    // Validate condition-specific fields
-    if (body.condition_type === 'threshold') {
-      if (body.threshold_value === undefined || !body.threshold_operator) {
-        return NextResponse.json(
-          { error: 'Threshold rules require threshold_value and threshold_operator' },
-          { status: 400 }
-        );
-      }
-    } else if (body.condition_type === 'status_change') {
-      // from_status and to_status are optional (NULL means any)
-      // But at least one should be specified for meaningful rule
-      if (!body.from_status && !body.to_status) {
-        return NextResponse.json(
-          { error: 'Status change rules should specify at least from_status or to_status' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Validate target
-    if (body.target_type !== 'all' && !body.target_id) {
-      return NextResponse.json(
-        { error: 'target_id is required when target_type is not "all"' },
+        { error: 'Invalid operator. Must be one of: gt, lt, gte, lte, eq' },
         { status: 400 }
       );
     }
@@ -105,49 +81,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
     }
 
+    // Check if integration exists
+    const integration = db.prepare('SELECT id FROM integrations WHERE id = ?').get(body.integration_id);
+    if (!integration) {
+      return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
+    }
+
     // Insert rule
     const result = db
       .prepare(
         `INSERT INTO notification_rules (
-          webhook_id, name, metric_type, metric_definition_id, condition_type,
-          threshold_value, threshold_operator,
-          from_status, to_status,
-          target_type, target_id,
-          is_active, cooldown_minutes, severity,
-          template_id, aggregation_enabled, aggregation_window_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          name, integration_id, metric_key, operator, threshold,
+          webhook_id, template_id, severity, cooldown_minutes, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
-        body.webhook_id,
         body.name,
-        body.metric_type ?? null,
-        body.metric_definition_id ?? null,
-        body.condition_type,
-        body.threshold_value ?? null,
-        body.threshold_operator ?? null,
-        body.from_status ?? null,
-        body.to_status ?? null,
-        body.target_type,
-        body.target_id ?? null,
-        (body.is_active ?? true) ? 1 : 0,
-        body.cooldown_minutes ?? 30,
-        body.severity ?? 'warning',
+        body.integration_id,
+        body.metric_key,
+        body.operator,
+        body.threshold,
+        body.webhook_id,
         body.template_id ?? null,
-        (body.aggregation_enabled ?? false) ? 1 : 0,
-        body.aggregation_window_ms ?? null
+        body.severity ?? 'warning',
+        body.cooldown_minutes ?? 30,
+        (body.is_active ?? true) ? 1 : 0
       );
 
+    // Fetch created rule with details
     const rule = db
       .prepare(
         `SELECT
           nr.*,
           wc.name as webhook_name,
-          wc.provider_type as webhook_provider_type
+          wc.provider_type as webhook_provider_type,
+          i.service_name as integration_name,
+          i.service_type as integration_type
         FROM notification_rules nr
         JOIN webhook_configs wc ON nr.webhook_id = wc.id
+        JOIN integrations i ON nr.integration_id = i.id
         WHERE nr.id = ?`
       )
-      .get(result.lastInsertRowid) as NotificationRuleWithWebhook;
+      .get(result.lastInsertRowid) as NotificationRuleWithDetails;
 
     return NextResponse.json({
       success: true,

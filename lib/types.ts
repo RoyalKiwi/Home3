@@ -227,48 +227,54 @@ export type TargetType = 'all' | 'card' | 'integration';
 
 export type Severity = 'info' | 'warning' | 'critical';
 
-// Notification rule model
+// =============================================================================
+// NOTIFICATION RULES - New Simplified Schema (Migration 014)
+// =============================================================================
 
+/**
+ * Notification Rule - Simplified schema
+ * Direct integration targeting with dynamic metric keys
+ */
 export interface NotificationRule {
   id: number;
-  webhook_id: number;
   name: string;
-  metric_type: MetricType | null;            // Legacy field (nullable after migration 012)
-  metric_definition_id: number | null;       // FK to metric_definitions (preferred)
-  condition_type: ConditionType;
 
-  // Threshold configuration
-  threshold_value: number | null;
-  threshold_operator: ThresholdOperator | null;
+  // Direct integration targeting (replaces target_type/target_id)
+  integration_id: number;
 
-  // Status change configuration
-  from_status: string | null;
-  to_status: string | null;
+  // Dynamic metric reference (replaces metric_definition_id)
+  metric_key: string;  // 'cpu', 'memory', 'disk', 'temperature', etc.
 
-  // Targeting
-  target_type: TargetType;
-  target_id: number | null;
+  // Threshold condition (simplified - always threshold, no status_change)
+  operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold: number;
 
-  // Behavior
-  is_active: boolean;
-  cooldown_minutes: number;
+  // Notification settings
+  webhook_id: number;
+  template_id: number | null;
   severity: Severity;
+  cooldown_minutes: number;
 
-  // Phase 4: Templates and Aggregation
-  template_id: number | null;                // FK to notification_templates
-  aggregation_enabled: boolean;              // Whether to batch similar alerts
-  aggregation_window_ms: number | null;      // Time window for aggregation (default 60000ms)
-
+  // State
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-// Notification rule with webhook details (for UI)
-
+/**
+ * Notification rule with joined data (for UI)
+ */
 export interface NotificationRuleWithWebhook extends NotificationRule {
   webhook_name: string;
   webhook_provider_type: WebhookProviderType;
+  integration_name: string;
+  integration_type: IntegrationType;
 }
+
+/**
+ * Alias for consistency
+ */
+export type NotificationRuleWithDetails = NotificationRuleWithWebhook;
 
 // Request payloads
 
@@ -285,55 +291,36 @@ export interface UpdateWebhookRequest {
   is_active?: boolean;
 }
 
+/**
+ * Create notification rule request - Simplified schema
+ */
 export interface CreateNotificationRuleRequest {
-  webhook_id: number;
   name: string;
-  metric_type?: MetricType;                  // Optional (legacy support)
-  metric_definition_id?: number;             // Optional (preferred for new rules)
-  // At least one of (metric_type, metric_definition_id) must be provided - validated by API
-  condition_type: ConditionType;
-
-  // Threshold fields (required if condition_type = 'threshold')
-  threshold_value?: number;
-  threshold_operator?: ThresholdOperator;
-
-  // Status change fields (required if condition_type = 'status_change')
-  from_status?: string;
-  to_status?: string;
-
-  // Targeting
-  target_type: TargetType;
-  target_id?: number;
-
-  // Behavior
-  is_active?: boolean;
-  cooldown_minutes?: number;
+  integration_id: number;
+  metric_key: string;
+  operator: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold: number;
+  webhook_id: number;
+  template_id?: number | null;
   severity?: Severity;
-
-  // Templates and Aggregation (Phase 4)
-  template_id?: number;
-  aggregation_enabled?: boolean;
-  aggregation_window_ms?: number;
+  cooldown_minutes?: number;
+  is_active?: boolean;
 }
 
+/**
+ * Update notification rule request - Simplified schema
+ */
 export interface UpdateNotificationRuleRequest {
-  webhook_id?: number;
   name?: string;
-  metric_type?: MetricType;
-  metric_definition_id?: number | null;
-  condition_type?: ConditionType;
-  threshold_value?: number | null;
-  threshold_operator?: ThresholdOperator | null;
-  from_status?: string | null;
-  to_status?: string | null;
-  target_type?: TargetType;
-  target_id?: number | null;
-  is_active?: boolean;
-  cooldown_minutes?: number;
-  severity?: Severity;
+  integration_id?: number;
+  metric_key?: string;
+  operator?: 'gt' | 'lt' | 'gte' | 'lte' | 'eq';
+  threshold?: number;
+  webhook_id?: number;
   template_id?: number | null;
-  aggregation_enabled?: boolean;
-  aggregation_window_ms?: number | null;
+  severity?: Severity;
+  cooldown_minutes?: number;
+  is_active?: boolean;
 }
 
 // Notification payload (sent to webhook)

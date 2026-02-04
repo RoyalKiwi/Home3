@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import type { UpdateNotificationRuleRequest } from '@/lib/types';
+import type { UpdateNotificationRuleRequest, NotificationRuleWithDetails } from '@/lib/types';
 
 /**
  * PATCH /api/notification-rules/[id]
@@ -34,74 +34,51 @@ export async function PATCH(
     const updates: string[] = [];
     const values: any[] = [];
 
-    if (body.webhook_id !== undefined) {
-      updates.push('webhook_id = ?');
-      values.push(body.webhook_id);
-    }
-
     if (body.name !== undefined) {
       updates.push('name = ?');
       values.push(body.name);
     }
 
-    if (body.metric_type !== undefined) {
-      updates.push('metric_type = ?');
-      values.push(body.metric_type);
+    if (body.integration_id !== undefined) {
+      // Validate integration exists
+      const integration = db.prepare('SELECT id FROM integrations WHERE id = ?').get(body.integration_id);
+      if (!integration) {
+        return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
+      }
+      updates.push('integration_id = ?');
+      values.push(body.integration_id);
     }
 
-    if (body.condition_type !== undefined) {
-      updates.push('condition_type = ?');
-      values.push(body.condition_type);
+    if (body.metric_key !== undefined) {
+      updates.push('metric_key = ?');
+      values.push(body.metric_key);
     }
 
-    if (body.threshold_value !== undefined) {
-      updates.push('threshold_value = ?');
-      values.push(body.threshold_value);
+    if (body.operator !== undefined) {
+      const validOperators = ['gt', 'lt', 'gte', 'lte', 'eq'];
+      if (!validOperators.includes(body.operator)) {
+        return NextResponse.json(
+          { error: 'Invalid operator. Must be one of: gt, lt, gte, lte, eq' },
+          { status: 400 }
+        );
+      }
+      updates.push('operator = ?');
+      values.push(body.operator);
     }
 
-    if (body.threshold_operator !== undefined) {
-      updates.push('threshold_operator = ?');
-      values.push(body.threshold_operator);
+    if (body.threshold !== undefined) {
+      updates.push('threshold = ?');
+      values.push(body.threshold);
     }
 
-    if (body.from_status !== undefined) {
-      updates.push('from_status = ?');
-      values.push(body.from_status);
-    }
-
-    if (body.to_status !== undefined) {
-      updates.push('to_status = ?');
-      values.push(body.to_status);
-    }
-
-    if (body.target_type !== undefined) {
-      updates.push('target_type = ?');
-      values.push(body.target_type);
-    }
-
-    if (body.target_id !== undefined) {
-      updates.push('target_id = ?');
-      values.push(body.target_id);
-    }
-
-    if (body.is_active !== undefined) {
-      updates.push('is_active = ?');
-      values.push(body.is_active ? 1 : 0);
-    }
-
-    if (body.cooldown_minutes !== undefined) {
-      updates.push('cooldown_minutes = ?');
-      values.push(body.cooldown_minutes);
-    }
-
-    if (body.severity !== undefined) {
-      updates.push('severity = ?');
-      values.push(body.severity);
-    }
-
-    if (body.metric_definition_id !== undefined) {
-      updates.push('metric_definition_id = ?');
-      values.push(body.metric_definition_id);
+    if (body.webhook_id !== undefined) {
+      // Validate webhook exists
+      const webhook = db.prepare('SELECT id FROM webhook_configs WHERE id = ?').get(body.webhook_id);
+      if (!webhook) {
+        return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
+      }
+      updates.push('webhook_id = ?');
+      values.push(body.webhook_id);
     }
 
     if (body.template_id !== undefined) {
@@ -109,14 +86,19 @@ export async function PATCH(
       values.push(body.template_id);
     }
 
-    if (body.aggregation_enabled !== undefined) {
-      updates.push('aggregation_enabled = ?');
-      values.push(body.aggregation_enabled ? 1 : 0);
+    if (body.severity !== undefined) {
+      updates.push('severity = ?');
+      values.push(body.severity);
     }
 
-    if (body.aggregation_window_ms !== undefined) {
-      updates.push('aggregation_window_ms = ?');
-      values.push(body.aggregation_window_ms);
+    if (body.cooldown_minutes !== undefined) {
+      updates.push('cooldown_minutes = ?');
+      values.push(body.cooldown_minutes);
+    }
+
+    if (body.is_active !== undefined) {
+      updates.push('is_active = ?');
+      values.push(body.is_active ? 1 : 0);
     }
 
     if (updates.length === 0) {
@@ -128,17 +110,21 @@ export async function PATCH(
 
     db.prepare(`UPDATE notification_rules SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
+    // Fetch updated rule with details
     const updated = db
       .prepare(
         `SELECT
           nr.*,
           wc.name as webhook_name,
-          wc.provider_type as webhook_provider_type
+          wc.provider_type as webhook_provider_type,
+          i.service_name as integration_name,
+          i.service_type as integration_type
         FROM notification_rules nr
         JOIN webhook_configs wc ON nr.webhook_id = wc.id
+        JOIN integrations i ON nr.integration_id = i.id
         WHERE nr.id = ?`
       )
-      .get(ruleId);
+      .get(ruleId) as NotificationRuleWithDetails;
 
     return NextResponse.json({
       success: true,
