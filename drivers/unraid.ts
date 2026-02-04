@@ -9,16 +9,10 @@ import type {
   IntegrationTestResult,
   MetricCapability,
   MetricData,
+  CapabilityMetadata,
 } from '@/lib/types';
 
 export class UnraidDriver extends BaseDriver {
-  readonly capabilities: MetricCapability[] = [
-    'cpu',
-    'memory',
-    'disk',
-    'docker',
-    'temperature',
-  ];
   readonly displayName = 'Unraid';
 
   private get config(): UnraidCredentials {
@@ -109,6 +103,151 @@ export class UnraidDriver extends BaseDriver {
         message: error instanceof Error ? error.message : 'Connection failed',
       };
     }
+  }
+
+  /**
+   * Get capabilities dynamically from Unraid GraphQL API
+   * Discovers all disks, containers, and VMs
+   */
+  async getCapabilities(): Promise<CapabilityMetadata[]> {
+    const capabilities: CapabilityMetadata[] = [];
+
+    try {
+      // Base system metrics (always available)
+      capabilities.push(
+        { key: 'cpu_usage', target: 'cpu', metric: 'usage', displayName: 'CPU Usage', description: 'CPU utilization percentage', unit: '%', category: 'performance' },
+        { key: 'cpu_temp', target: 'cpu', metric: 'temp', displayName: 'CPU Temperature', description: 'CPU temperature', unit: '°C', category: 'health' },
+        { key: 'memory_usage', target: 'memory', metric: 'usage', displayName: 'RAM Usage', description: 'Memory utilization percentage', unit: '%', category: 'performance' },
+        { key: 'array_status', target: 'array', metric: 'status', displayName: 'Array Status', description: 'Array health status', unit: 'status', category: 'health' }
+      );
+
+      // Query for disks and containers dynamically
+      const [disks, containers] = await Promise.all([
+        this.fetchDisksList(),
+        this.fetchContainersList(),
+      ]);
+
+      // Add per-disk metrics
+      for (const disk of disks) {
+        capabilities.push({
+          key: `disk_${disk.name}_usage`,
+          target: `disk_${disk.name}`,
+          metric: 'usage',
+          displayName: `${disk.name} Usage`,
+          description: `Disk space usage for ${disk.name}`,
+          unit: '%',
+          category: 'performance'
+        });
+
+        if (disk.hasTemp) {
+          capabilities.push({
+            key: `disk_${disk.name}_temp`,
+            target: `disk_${disk.name}`,
+            metric: 'temp',
+            displayName: `${disk.name} Temperature`,
+            description: `Temperature for ${disk.name}`,
+            unit: '°C',
+            category: 'health'
+          });
+        }
+      }
+
+      // Add per-container metrics
+      for (const container of containers) {
+        capabilities.push({
+          key: `docker_${container.name}_status`,
+          target: `docker_${container.name}`,
+          metric: 'status',
+          displayName: `Docker: ${container.name}`,
+          description: `Status of Docker container ${container.name}`,
+          unit: 'status',
+          category: 'status'
+        });
+      }
+
+      // Add parity metrics if parity disk exists
+      if (disks.some(d => d.isParity)) {
+        capabilities.push(
+          { key: 'parity_errors', target: 'parity', metric: 'errors', displayName: 'Parity Errors', description: 'Parity check error count', unit: 'errors', category: 'health' },
+          { key: 'parity_status', target: 'parity', metric: 'status', displayName: 'Parity Status', description: 'Parity check status', unit: 'status', category: 'health' }
+        );
+      }
+
+      return capabilities.length > 0 ? capabilities : this.getFallbackCapabilities();
+    } catch (error) {
+      console.error('[UnraidDriver] Failed to fetch capabilities:', error);
+      return this.getFallbackCapabilities();
+    }
+  }
+
+  /**
+   * Fetch list of disks from Unraid API
+   */
+  private async fetchDisksList(): Promise<Array<{ name: string; hasTemp: boolean; isParity: boolean }>> {
+    try {
+      const query = `
+        query {
+          array {
+            disks {
+              name
+              temp
+              status
+            }
+          }
+        }
+      `;
+
+      const data = await this.graphqlQuery(query);
+      const disks = data.array?.disks || [];
+
+      return disks.map((disk: any) => ({
+        name: disk.name,
+        hasTemp: disk.temp !== null && disk.temp !== undefined,
+        isParity: disk.name?.toLowerCase().includes('parity') || false,
+      }));
+    } catch (error) {
+      console.error('[UnraidDriver] Failed to fetch disks list:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch list of Docker containers from Unraid API
+   */
+  private async fetchContainersList(): Promise<Array<{ name: string }>> {
+    try {
+      const query = `
+        query {
+          docker {
+            containers {
+              id
+              names
+            }
+          }
+        }
+      `;
+
+      const data = await this.graphqlQuery(query);
+      const containers = data.docker?.containers || [];
+
+      return containers.map((container: any) => ({
+        name: container.names || container.id,
+      }));
+    } catch (error) {
+      console.error('[UnraidDriver] Failed to fetch containers list:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get fallback capabilities if API query fails
+   */
+  private getFallbackCapabilities(): CapabilityMetadata[] {
+    return [
+      { key: 'cpu_usage', target: 'cpu', metric: 'usage', displayName: 'CPU Usage', description: 'CPU utilization percentage', unit: '%', category: 'performance' },
+      { key: 'memory_usage', target: 'memory', metric: 'usage', displayName: 'RAM Usage', description: 'Memory utilization percentage', unit: '%', category: 'performance' },
+      { key: 'array_status', target: 'array', metric: 'status', displayName: 'Array Status', description: 'Array health status', unit: 'status', category: 'health' },
+    ];
   }
 
   /**
@@ -298,27 +437,4 @@ export class UnraidDriver extends BaseDriver {
     };
   }
 
-  /**
-   * Route metric requests to appropriate methods
-   */
-  async fetchMetric(metric: MetricCapability): Promise<MetricData | null> {
-    if (!this.supportsMetric(metric)) {
-      throw new Error(`Unraid does not support metric: ${metric}`);
-    }
-
-    switch (metric) {
-      case 'cpu':
-        return this.fetchCPU();
-      case 'memory':
-        return this.fetchMemory();
-      case 'disk':
-        return this.fetchDisk();
-      case 'docker':
-        return this.fetchDocker();
-      case 'temperature':
-        return this.fetchTemperature();
-      default:
-        return null;
-    }
-  }
 }

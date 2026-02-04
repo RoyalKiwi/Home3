@@ -9,10 +9,10 @@ import type {
   IntegrationTestResult,
   MetricCapability,
   MetricData,
+  CapabilityMetadata,
 } from '@/lib/types';
 
 export class UptimeKumaDriver extends BaseDriver {
-  readonly capabilities: MetricCapability[] = ['uptime', 'services'];
   readonly displayName = 'Uptime Kuma';
 
   private get config(): UptimeKumaCredentials {
@@ -65,6 +65,59 @@ export class UptimeKumaDriver extends BaseDriver {
         message: error instanceof Error ? error.message : 'Connection failed',
       };
     }
+  }
+
+  /**
+   * Get capabilities dynamically from Uptime Kuma
+   * Discovers all monitors via Prometheus metrics
+   */
+  async getCapabilities(): Promise<CapabilityMetadata[]> {
+    const capabilities: CapabilityMetadata[] = [];
+
+    try {
+      // Fetch monitor list from Prometheus metrics
+      const monitors = await this.fetchMonitorList();
+
+      // Add per-monitor metrics
+      for (const monitor of monitors) {
+        const target = `monitor_${monitor.name}`;
+
+        // Uptime metric for each monitor
+        capabilities.push({
+          key: `${target}_uptime`,
+          target: target,
+          metric: 'uptime',
+          displayName: `${monitor.name} Uptime`,
+          description: `Uptime percentage for ${monitor.name}`,
+          unit: '%',
+          category: 'health'
+        });
+
+        // Status metric for each monitor
+        capabilities.push({
+          key: `${target}_status`,
+          target: target,
+          metric: 'status',
+          displayName: `${monitor.name} Status`,
+          description: `Health status for ${monitor.name}`,
+          unit: 'status',
+          category: 'status'
+        });
+      }
+
+      return capabilities.length > 0 ? capabilities : this.getFallbackCapabilities();
+    } catch (error) {
+      console.error('[UptimeKumaDriver] Failed to fetch capabilities:', error);
+      return this.getFallbackCapabilities();
+    }
+  }
+
+  /**
+   * Get fallback capabilities if API query fails
+   */
+  private getFallbackCapabilities(): CapabilityMetadata[] {
+    // Return empty array - no monitors configured or API unavailable
+    return [];
   }
 
   /**
@@ -176,21 +229,4 @@ export class UptimeKumaDriver extends BaseDriver {
     return monitors;
   }
 
-  /**
-   * Route metric requests to appropriate methods
-   */
-  async fetchMetric(metric: MetricCapability): Promise<MetricData | null> {
-    if (!this.supportsMetric(metric)) {
-      throw new Error(`Uptime Kuma does not support metric: ${metric}`);
-    }
-
-    switch (metric) {
-      case 'uptime':
-        return this.fetchUptime();
-      case 'services':
-        return this.fetchServices();
-      default:
-        return null;
-    }
-  }
 }
