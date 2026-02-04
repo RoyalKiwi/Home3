@@ -192,3 +192,11 @@ class UnifiedPoller {
 
 // Singleton instance
 export const unifiedPoller = new UnifiedPoller();
+
+// Auto-start in Node.js environment (not in browser/webpack)
+if (typeof window === 'undefined' && typeof process !== 'undefined') {
+  // Start UnifiedPoller automatically on application startup
+  // This ensures notification rules can auto-trigger even without an active dashboard connection
+  unifiedPoller.start();
+  console.log('[UnifiedPoller] Auto-started on application initialization');
+}
