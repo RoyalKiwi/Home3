@@ -6,7 +6,7 @@
 import { getDb } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import { createDriver } from './driverFactory';
-import type { Integration, IntegrationCredentials, MetricCapability } from '@/lib/types';
+import type { Integration, IntegrationCredentials, CapabilityMetadata } from '@/lib/types';
 
 class MonitoringService {
   /**
@@ -48,18 +48,18 @@ class MonitoringService {
       );
 
       // Fetch all supported metrics
-      const capabilities = driver.getCapabilities();
+      const capabilities = await driver.getCapabilities();
       const metricResults: Record<string, any> = {};
 
       for (const capability of capabilities) {
         try {
-          const data = await driver.fetchMetric(capability);
+          const data = await driver.fetchMetric(capability.key);
           if (data) {
-            metricResults[capability] = data;
+            metricResults[capability.key] = data;
           }
         } catch (error) {
           console.error(
-            `[Monitoring] Failed to fetch ${capability} from ${integration.service_name}:`,
+            `[Monitoring] Failed to fetch ${capability.key} from ${integration.service_name}:`,
             error instanceof Error ? error.message : error
           );
         }
